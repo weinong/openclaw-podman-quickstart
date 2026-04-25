@@ -9,6 +9,7 @@ Image=ghcr.io/openclaw/openclaw:latest
 ContainerName=openclaw-gateway
 Volume=%h/.openclaw:/home/node/.openclaw:Z
 Volume=%h/.openclaw/workspace:/home/node/.openclaw/workspace:Z
+EnvironmentFile=%h/.config/openclaw-gateway/gateway.env
 Environment=OPENCLAW_HOME=/home/node/.openclaw
 Environment=OPENCLAW_CONFIG_PATH=/home/node/.openclaw/openclaw.json
 Environment=NO_COLOR=1
