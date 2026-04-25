@@ -1,6 +1,6 @@
 # OpenClaw Podman Quickstart
 
-Bootstrap a headless Ubuntu host to run OpenClaw with rootless Podman, user-level systemd services, and a persistent Chromium CDP browser container.
+Bootstrap a headless Ubuntu host to run OpenClaw with rootless Podman, user-level systemd services, a persistent Chromium CDP browser container, and optional Discord gateway configuration.
 
 This repo focuses on **bootstrap**, not snapshot/backup. It is meant to help you reproduce the setup quickly on a fresh VM.
 
@@ -15,6 +15,7 @@ This repo focuses on **bootstrap**, not snapshot/backup. It is meant to help you
   - a persistent Chromium CDP browser container
   - an optional OpenClaw gateway container skeleton
 - A minimal OpenClaw browser profile config pointing to the persistent CDP endpoint.
+- Optional Discord bot bootstrap with token stored in a user-only env file and access policy stored in OpenClaw config.
 
 ## Assumptions
 
@@ -22,6 +23,7 @@ This repo focuses on **bootstrap**, not snapshot/backup. It is meant to help you
 - You want to run services as a non-root user.
 - You want a persistent browser endpoint for OpenClaw, not short-lived Browserless sessions.
 - Chrome CDP should stay local to the pod/host and should not be exposed publicly.
+- Discord access should be explicit: allowed DM users, allowed server/guild IDs, and private-server mention behavior.
 
 ## Prerequisite packages
 
@@ -107,6 +109,51 @@ sudo -iu openclaw
 ./openclaw-podman-quickstart/scripts/doctor-openclaw-podman.sh
 ```
 
+## Optional: bootstrap Discord
+
+Create a Discord application and bot in the Discord Developer Portal, copy the bot token, enable the required intents, and invite the bot to your server.
+
+Then run:
+
+```bash
+DISCORD_BOT_TOKEN='YOUR_BOT_TOKEN' \
+  sudo -E bash ./scripts/configure-discord.sh openclaw \
+    --dm-user YOUR_DISCORD_USER_ID \
+    --guild YOUR_DISCORD_GUILD_ID \
+    --require-mention false
+```
+
+This configures:
+
+```text
+DM policy: allowlist
+Allowed DM users: values from --dm-user
+Guild/server policy: allowlist
+Allowed guilds: values from --guild
+Mention requirement: false by default in this example
+```
+
+The bot token is stored here with mode `0600`:
+
+```text
+~openclaw/.config/openclaw-gateway/gateway.env
+```
+
+The access policy is written to:
+
+```text
+~openclaw/.openclaw/openclaw.json
+```
+
+Start or restart the gateway after configuring Discord:
+
+```bash
+sudo -iu openclaw
+systemctl --user restart openclaw-gateway.service
+```
+
+See [docs/discord-bootstrap.md](docs/discord-bootstrap.md) for the full Discord flow.
+
 ## Layout
 
 ```text
@@ -116,9 +163,11 @@ sudo -iu openclaw
 │   ├── openclaw-browser.container
 │   └── openclaw-gateway.container
 ├── docs/
-│   └── bootstrap.md
+│   ├── bootstrap.md
+│   └── discord-bootstrap.md
 ├── scripts/
 │   ├── bootstrap-os.sh
+│   ├── configure-discord.sh
 │   ├── install-openclaw-podman.sh
 │   └── doctor-openclaw-podman.sh
 └── README.md
@@ -140,9 +189,11 @@ When OpenClaw and the browser run in the same Podman pod, that address resolves 
 
 - Do not expose Chrome CDP to the public internet.
 - Do not commit real `openclaw.json` files if they contain auth profiles, tokens, API keys, or local machine secrets.
+- Do not commit `~openclaw/.config/openclaw-gateway/gateway.env`; it contains the Discord bot token.
 - This repo intentionally avoids snapshotting runtime state.
 - Treat the OpenClaw gateway and browser CDP endpoint as sensitive control surfaces.
 
-## Detailed guide
+## Detailed guides
 
-See [docs/bootstrap.md](docs/bootstrap.md).
+- [Bootstrap OpenClaw with rootless Podman](docs/bootstrap.md)
+- [Bootstrap Discord for OpenClaw](docs/discord-bootstrap.md)
