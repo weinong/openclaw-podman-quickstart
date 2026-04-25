@@ -1,0 +1,22 @@
+[Unit]
+Description=OpenClaw gateway container
+After=openclaw-pod.service openclaw-browser.service
+Requires=openclaw-pod.service openclaw-browser.service
+
+[Container]
+Pod=openclaw.pod
+Image=ghcr.io/openclaw/openclaw:latest
+ContainerName=openclaw-gateway
+Volume=%h/.openclaw:/home/node/.openclaw:Z
+Volume=%h/.openclaw/workspace:/home/node/.openclaw/workspace:Z
+Environment=OPENCLAW_HOME=/home/node/.openclaw
+Environment=OPENCLAW_CONFIG_PATH=/home/node/.openclaw/openclaw.json
+Environment=NO_COLOR=1
+
+[Service]
+Restart=always
+RestartSec=5
+TimeoutStartSec=300
+
+[Install]
+WantedBy=default.target
