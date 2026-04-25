@@ -16,8 +16,13 @@ if [[ -z "${home_dir}" ]]; then
 fi
 
 install -d -o "${svc_user}" -g "${svc_user}" "${home_dir}/.config/containers/systemd"
+install -d -o "${svc_user}" -g "${svc_user}" -m 0700 "${home_dir}/.config/openclaw-gateway"
 install -d -o "${svc_user}" -g "${svc_user}" "${home_dir}/.local/share/openclaw-browser"
 install -d -o "${svc_user}" -g "${svc_user}" "${home_dir}/.openclaw/workspace"
+
+touch "${home_dir}/.config/openclaw-gateway/gateway.env"
+chown "${svc_user}:${svc_user}" "${home_dir}/.config/openclaw-gateway/gateway.env"
+chmod 0600 "${home_dir}/.config/openclaw-gateway/gateway.env"
 
 install -o "${svc_user}" -g "${svc_user}" -m 0644 \
   "${repo_root}/deploy/openclaw/openclaw.pod" \
