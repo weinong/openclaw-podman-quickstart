@@ -23,6 +23,68 @@ This repo focuses on **bootstrap**, not snapshot/backup. It is meant to help you
 - You want a persistent browser endpoint for OpenClaw, not short-lived Browserless sessions.
 - Chrome CDP should stay local to the pod/host and should not be exposed publicly.
 
+## Prerequisite packages
+
+On a fresh Ubuntu VM, install `git` first so you can clone this repo:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y git
+```
+
+After cloning the repo, run the OS bootstrap script to install the rest of the packages required by the Podman/systemd workflow:
+
+```bash
+sudo ./scripts/bootstrap-os.sh openclaw
+```
+
+The bootstrap script installs:
+
+```text
+ca-certificates
+curl
+dbus-user-session
+fuse-overlayfs
+git
+gnupg
+iproute2
+jq
+lsof
+openssl
+podman
+slirp4netns
+systemd-container
+uidmap
+```
+
+If you prefer to install prerequisites manually instead of using the script, run:
+
+```bash
+sudo apt-get update
+sudo apt-get install -y \
+  ca-certificates \
+  curl \
+  dbus-user-session \
+  fuse-overlayfs \
+  git \
+  gnupg \
+  iproute2 \
+  jq \
+  lsof \
+  openssl \
+  podman \
+  slirp4netns \
+  systemd-container \
+  uidmap
+```
+
+Then create the service user and enable linger manually:
+
+```bash
+sudo useradd --create-home --shell /bin/bash openclaw 2>/dev/null || true
+sudo loginctl enable-linger openclaw
+```
+
 ## Fast path
 
 From a fresh Ubuntu VM:
