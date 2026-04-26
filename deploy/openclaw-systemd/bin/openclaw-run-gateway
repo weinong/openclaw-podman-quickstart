@@ -9,6 +9,7 @@ exec /usr/bin/podman run --rm \
   -e HOME=/home/node \
   -e OPENCLAW_HOME=/home/node/.openclaw \
   -e OPENCLAW_CONFIG_PATH=/home/node/.openclaw/openclaw.json \
+  -e OPENCLAW_DISABLE_BONJOUR=1 \
   -e NO_COLOR=1 \
   -v "${HOME}/.openclaw:/home/node/.openclaw:Z" \
   -v "${HOME}/.openclaw/workspace:/home/node/.openclaw/workspace:Z" \
