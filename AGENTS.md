@@ -15,6 +15,22 @@ When adding features, keep this boundary clear:
 - Do not invent repo-specific config schemas when an OpenClaw config path or runtime concept exists.
 - Keep raw secrets out of `openclaw.json`; use SecretRefs where OpenClaw supports them and store actual values in user-owned env/config files with restrictive permissions.
 
+## OpenClaw Config Changes
+
+When adding or changing code that writes `~/.openclaw/openclaw.json`, follow the skill in:
+
+```text
+.agents/skills/update-openclaw-config/SKILL.md
+```
+
+Always consult the upstream configuration reference before choosing config paths:
+
+```text
+https://docs.openclaw.ai/gateway/configuration-reference
+```
+
+Use channel-specific upstream docs when relevant, such as `https://docs.openclaw.ai/channels/discord` for Discord accounts, SecretRefs, and routing.
+
 ## `oc.sh` Subcommands
 
 When adding or changing an `oc.sh` subcommand, make sure the subcommand supports both `-h` and `--help`. Help output must work without requiring the `openclaw` user, user systemd, Podman, or other runtime services.
