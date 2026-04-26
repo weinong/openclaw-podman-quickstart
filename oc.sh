@@ -144,7 +144,7 @@ Targets:
   discord
     Requires DISCORD_BOT_TOKEN in the environment.
     Writes DISCORD_BOT_TOKEN into ~/.config/openclaw-gateway/gateway.env.
-    Patches ~/.openclaw/openclaw.json with Discord DM/guild allowlists.
+    Patches ~/.openclaw/openclaw.json with a SecretRef and DM/guild allowlists.
 
 Notes:
   Feature config commands use config set/unset internally.
@@ -656,6 +656,8 @@ config_discord() {
   guild_users_json="$(printf '%s\n' "${guild_users[@]}" | jq -R . | jq -s .)"
 
   config_set_json "channels.discord.enabled" "true"
+  config_set_json "secrets.providers.default" '{"source":"env"}'
+  config_set_json "channels.discord.token" '{"source":"env","provider":"default","id":"DISCORD_BOT_TOKEN"}'
   config_set_path "channels.discord.dmPolicy" "allowlist"
   config_set_json "channels.discord.allowFrom" "${dm_json}"
   config_set_path "channels.discord.groupPolicy" "allowlist"
@@ -669,7 +671,6 @@ config_discord() {
       config_set_json "channels.discord.guilds.${guild_id}.channels.${channel_id}.requireMention" "${require_mention}"
     done
   done
-  config_unset_path "channels.discord.token"
 
   echo "Discord config updated: ${openclaw_config}"
   echo "Discord token stored in: ${gateway_env}"

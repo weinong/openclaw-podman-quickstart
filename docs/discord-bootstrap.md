@@ -2,14 +2,14 @@
 
 This guide configures OpenClaw's Discord channel with:
 
-- bot token loaded from a user-only environment file
+- bot token loaded from a user-only environment file through an OpenClaw SecretRef
 - DM allowlist
 - guild/server allowlist
 - optional guild channel allowlist
 - optional guild user allowlist
 - `requireMention: false` for private servers where the bot should respond without being @mentioned
 
-The token is not stored in `openclaw.json`.
+The raw token is not stored in `openclaw.json`; only a SecretRef to `DISCORD_BOT_TOKEN` is stored there.
 
 ## Discord Prerequisites
 
@@ -97,6 +97,11 @@ The script patches the Discord channel block into `openclaw.json`:
   "channels": {
     "discord": {
       "enabled": true,
+      "token": {
+        "source": "env",
+        "provider": "default",
+        "id": "DISCORD_BOT_TOKEN"
+      },
       "dmPolicy": "allowlist",
       "allowFrom": ["YOUR_DISCORD_USER_ID"],
       "groupPolicy": "allowlist",
@@ -111,9 +116,21 @@ The script patches the Discord channel block into `openclaw.json`:
 }
 ```
 
-With channel restrictions, the guild entry includes a `channels` map.
+With channel restrictions, the guild entry includes a `channels` map. The script also ensures this secret provider exists:
 
-The script also deletes `channels.discord.token` if present, so the bot token is not stored in JSON.
+```json
+{
+  "secrets": {
+    "providers": {
+      "default": {
+        "source": "env"
+      }
+    }
+  }
+}
+```
+
+The raw token value stays in `~/.config/openclaw-gateway/gateway.env`; `openclaw.json` stores only the SecretRef.
 
 ## Restart the Gateway
 

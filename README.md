@@ -250,7 +250,7 @@ Restart the gateway after changing Discord settings:
 ./oc.sh restart gateway
 ```
 
-The bot token is stored in `~/.config/openclaw-gateway/gateway.env`. The access policy is written to `~/.openclaw/openclaw.json`.
+The raw bot token is stored in `~/.config/openclaw-gateway/gateway.env`. `~/.openclaw/openclaw.json` stores a SecretRef to `DISCORD_BOT_TOKEN` plus the Discord access policy.
 
 ## `oc.sh` Commands
 
