@@ -1,0 +1,15 @@
+[Unit]
+Description=SearXNG search sidecar for OpenClaw
+After=openclaw-pod.service
+Requires=openclaw-pod.service
+
+[Service]
+Restart=always
+RestartSec=5
+TimeoutStartSec=300
+ExecStartPre=-/usr/bin/podman rm -f openclaw-searxng
+ExecStart=%h/.local/bin/openclaw-run-searxng
+ExecStop=/usr/bin/podman stop openclaw-searxng
+
+[Install]
+WantedBy=default.target
