@@ -1,0 +1,20 @@
+[Unit]
+Description=LiteLLM proxy sidecar for OpenClaw
+After=openclaw-pod.service
+Requires=openclaw-pod.service
+
+[Container]
+Pod=openclaw.pod
+Image=docker.io/berriai/litellm:main-latest
+ContainerName=openclaw-litellm
+EnvironmentFile=%h/.config/litellm/litellm.env
+Volume=%h/.config/litellm/config.yaml:/app/config.yaml:Z
+Exec=--config /app/config.yaml --port 4000 --host 0.0.0.0
+
+[Service]
+Restart=always
+RestartSec=5
+TimeoutStartSec=300
+
+[Install]
+WantedBy=default.target
