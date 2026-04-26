@@ -18,6 +18,20 @@ core_services=(
   searxng.service
 )
 
+image_names=(
+  openclaw-gateway
+  openclaw-browser
+  litellm
+  searxng
+)
+
+image_refs=(
+  "ghcr.io/openclaw/openclaw:2026.4.24@sha256:7c4370ff8777555d4c9fe5ab821aaaad7c87188d389a6cf761270725d96ec3e9"
+  "docker.io/chromedp/headless-shell:148.0.7778.56@sha256:8b36bc4bca3f394103db8a2e60f0053969a277b3918abc39acfee819168c4f79"
+  "docker.litellm.ai/berriai/litellm:main-v1.82.3@sha256:067aee932b8770ed42955ee802a04abdcd369d0995b5e696bb07d6520a231b1c"
+  "docker.io/searxng/searxng:2026.4.24-a7ac696b4@sha256:c9100c29c14a77d5289263a671580226c3b8a396a1a0130d2f500f57076a0119"
+)
+
 usage() {
   cat <<'EOF'
 Usage:
@@ -28,6 +42,7 @@ Usage:
   DISCORD_BOT_TOKEN='...' ./oc.sh config discord [options]
   ./oc.sh start|stop|restart|status [service]
   ./oc.sh logs [service]
+  ./oc.sh images [--json]
   ./oc.sh doctor
 
 Install:
@@ -38,6 +53,10 @@ Install:
 Uninstall:
   uninstall               Stop services and remove installed units/helpers only.
   uninstall --purge --yes Also remove generated config, credentials, and data.
+
+Images:
+  images                  Print pinned image tags and sha256 manifest digests.
+  images --json           Print pinned images as JSON.
 
 Services:
   browser                 openclaw-browser.service
@@ -69,6 +88,48 @@ EOF
 die() {
   echo "error: $*" >&2
   exit 1
+}
+
+split_image_ref() {
+  local ref="$1"
+  image_without_digest="${ref%@sha256:*}"
+  image_digest="sha256:${ref##*@sha256:}"
+  image_repository="${image_without_digest%:*}"
+  image_tag="${image_without_digest##*:}"
+}
+
+print_images() {
+  local format="${1:-text}"
+  local i
+
+  case "${format}" in
+    text)
+      for i in "${!image_names[@]}"; do
+        split_image_ref "${image_refs[$i]}"
+        printf '%s %s %s %s\n' "${image_names[$i]}" "${image_repository}" "${image_tag}" "${image_digest}"
+      done
+      ;;
+    json)
+      printf '[\n'
+      for i in "${!image_names[@]}"; do
+        split_image_ref "${image_refs[$i]}"
+        printf '  {"name":"%s","repository":"%s","tag":"%s","digest":"%s","ref":"%s"}' \
+          "${image_names[$i]}" \
+          "${image_repository}" \
+          "${image_tag}" \
+          "${image_digest}" \
+          "${image_refs[$i]}"
+        if [[ "${i}" -lt "$((${#image_names[@]} - 1))" ]]; then
+          printf ','
+        fi
+        printf '\n'
+      done
+      printf ']\n'
+      ;;
+    *)
+      die "unknown images format: ${format}"
+      ;;
+  esac
 }
 
 need_cmd() {
@@ -731,6 +792,14 @@ main() {
       parse_common_flags "${args[@]}"
       assert_openclaw_user "${allow_current_user}"
       uninstall_openclaw "${purge}" "${yes}"
+      ;;
+    images)
+      shift
+      case "${1:-}" in
+        "") print_images text ;;
+        --json) print_images json ;;
+        *) die "unknown images option: $1" ;;
+      esac
       ;;
     start|stop|restart|status)
       local action="${cmd}"

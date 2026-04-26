@@ -260,10 +260,30 @@ The bot token is stored in `~/.config/openclaw-gateway/gateway.env`. The access 
 ./oc.sh restart browser|litellm|searxng|gateway|pod|all
 ./oc.sh status browser|litellm|searxng|gateway|pod|all
 ./oc.sh logs gateway
+./oc.sh images
+./oc.sh images --json
 ./oc.sh doctor
 ```
 
 For development or testing under a non-`openclaw` user, pass `--allow-current-user` to commands that normally enforce the service username.
+
+## Pinned Images
+
+Deployment assets use tag-plus-digest image references instead of mutable `latest` tags. Print the pinned image inventory with:
+
+```bash
+./oc.sh images
+./oc.sh images --json
+```
+
+Current pins:
+
+```text
+openclaw-gateway ghcr.io/openclaw/openclaw 2026.4.24 sha256:7c4370ff8777555d4c9fe5ab821aaaad7c87188d389a6cf761270725d96ec3e9
+openclaw-browser docker.io/chromedp/headless-shell 148.0.7778.56 sha256:8b36bc4bca3f394103db8a2e60f0053969a277b3918abc39acfee819168c4f79
+litellm docker.litellm.ai/berriai/litellm main-v1.82.3 sha256:067aee932b8770ed42955ee802a04abdcd369d0995b5e696bb07d6520a231b1c
+searxng docker.io/searxng/searxng 2026.4.24-a7ac696b4 sha256:c9100c29c14a77d5289263a671580226c3b8a396a1a0130d2f500f57076a0119
+```
 
 ## Uninstall
 

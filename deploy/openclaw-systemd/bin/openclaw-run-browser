@@ -6,4 +6,4 @@ exec /usr/bin/podman run --rm \
   --pod openclaw \
   --shm-size=2g \
   -v "${HOME}/.local/share/openclaw-browser:/data:Z" \
-  docker.io/chromedp/headless-shell:latest
+  docker.io/chromedp/headless-shell:148.0.7778.56@sha256:8b36bc4bca3f394103db8a2e60f0053969a277b3918abc39acfee819168c4f79

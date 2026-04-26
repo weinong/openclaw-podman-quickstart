@@ -5,7 +5,7 @@ Requires=openclaw-pod.service
 
 [Container]
 Pod=openclaw.pod
-Image=docker.io/chromedp/headless-shell:latest
+Image=docker.io/chromedp/headless-shell:148.0.7778.56@sha256:8b36bc4bca3f394103db8a2e60f0053969a277b3918abc39acfee819168c4f79
 ContainerName=openclaw-browser
 ShmSize=2g
 Volume=%h/.local/share/openclaw-browser:/data:Z
