@@ -20,6 +20,7 @@ install -d -o "${svc_user}" -g "${svc_user}" -m 0700 "${home_dir}/.config/opencl
 install -d -o "${svc_user}" -g "${svc_user}" -m 0700 "${home_dir}/.config/litellm"
 install -d -o "${svc_user}" -g "${svc_user}" -m 0700 "${home_dir}/.local/share/litellm"
 install -d -o "${svc_user}" -g "${svc_user}" -m 0700 "${home_dir}/.local/share/litellm/github_copilot"
+install -d -o "${svc_user}" -g "${svc_user}" -m 0700 "${home_dir}/.local/share/litellm/chatgpt"
 install -d -o "${svc_user}" -g "${svc_user}" "${home_dir}/.local/share/openclaw-browser"
 install -d -o "${svc_user}" -g "${svc_user}" "${home_dir}/.openclaw/workspace"
 
@@ -31,9 +32,9 @@ if [[ ! -f "${home_dir}/.config/litellm/litellm.env" ]]; then
   litellm_master_key="sk-litellm-$(openssl rand -hex 24)"
   cat > "${home_dir}/.config/litellm/litellm.env" <<EOF
 LITELLM_MASTER_KEY=${litellm_master_key}
-# GitHub Copilot provider uses OAuth device flow.
+# GitHub Copilot and ChatGPT providers use OAuth device flow.
 # No upstream API key is required for the default config.yaml.
-# The first model request will print a device login URL/code in LiteLLM logs.
+# The first model request for each provider will print a device login URL/code in LiteLLM logs.
 EOF
   chown "${svc_user}:${svc_user}" "${home_dir}/.config/litellm/litellm.env"
   chmod 0600 "${home_dir}/.config/litellm/litellm.env"
@@ -96,6 +97,14 @@ if [[ ! -f "${home_dir}/.openclaw/openclaw.json" ]]; then
             "input": ["text"],
             "contextWindow": 128000,
             "maxTokens": 8192
+          },
+          {
+            "id": "chatgpt/gpt-5.4",
+            "name": "ChatGPT GPT-5.4 via LiteLLM",
+            "reasoning": true,
+            "input": ["text", "image"],
+            "contextWindow": 128000,
+            "maxTokens": 32768
           }
         ]
       }
@@ -132,6 +141,14 @@ else
           input: ["text"],
           contextWindow: 128000,
           maxTokens: 8192
+        },
+        {
+          id: "chatgpt/gpt-5.4",
+          name: "ChatGPT GPT-5.4 via LiteLLM",
+          reasoning: true,
+          input: ["text", "image"],
+          contextWindow: 128000,
+          maxTokens: 32768
         }
       ]
     } |
@@ -178,5 +195,6 @@ fi
 echo "Install complete for user: ${svc_user}"
 echo "LiteLLM env: ${home_dir}/.config/litellm/litellm.env"
 echo "LiteLLM Copilot token cache: ${home_dir}/.local/share/litellm/github_copilot"
-echo "The first LiteLLM request to github_copilot/gpt-4 will print a device login URL/code in LiteLLM logs."
+echo "LiteLLM ChatGPT token cache: ${home_dir}/.local/share/litellm/chatgpt"
+echo "The first LiteLLM request to github_copilot/gpt-4 or chatgpt/gpt-5.4 will print a device login URL/code in LiteLLM logs."
 echo "Gateway unit is installed as a skeleton. Start it after OpenClaw onboarding/configuration is ready."
