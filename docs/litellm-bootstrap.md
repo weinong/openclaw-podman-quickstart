@@ -130,6 +130,7 @@ The repo's default `config/litellm/config.yaml` exposes these active model names
 
 ```text
 github_copilot/gpt-5.4
+github_copilot/gpt-5.5
 github_copilot/claude-opus-4.6
 ```
 

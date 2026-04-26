@@ -586,6 +586,14 @@ config_openclaw() {
         "maxTokens": 32768
       },
       {
+        "id": "github_copilot/gpt-5.5",
+        "name": "GitHub Copilot GPT-5.5 via LiteLLM",
+        "reasoning": true,
+        "input": ["text", "image"],
+        "contextWindow": 128000,
+        "maxTokens": 32768
+      },
+      {
         "id": "github_copilot/claude-opus-4.6",
         "name": "GitHub Copilot Claude Opus 4.6 via LiteLLM",
         "reasoning": true,

@@ -181,6 +181,7 @@ The default LiteLLM config uses GitHub Copilot OAuth/device-code models:
 
 ```text
 github_copilot/gpt-5.4
+github_copilot/gpt-5.5
 github_copilot/claude-opus-4.6
 ```
 
