@@ -318,7 +318,7 @@ For development or testing under a non-`openclaw` user, pass `--allow-current-us
 
 ## Pinned Images
 
-Deployment assets use tag-plus-digest image references instead of mutable `latest` tags. Print the pinned image inventory with:
+`oc.sh` owns the tag-plus-digest image references and renders them into the installed Quadlet and fallback systemd assets. Print the pinned image inventory with:
 
 ```bash
 ./oc.sh images

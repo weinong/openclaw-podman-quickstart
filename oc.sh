@@ -32,6 +32,11 @@ image_refs=(
   "docker.io/searxng/searxng:2026.4.24-a7ac696b4@sha256:c9100c29c14a77d5289263a671580226c3b8a396a1a0130d2f500f57076a0119"
 )
 
+openclaw_gateway_image="${image_refs[0]}"
+openclaw_browser_image="${image_refs[1]}"
+litellm_image="${image_refs[2]}"
+searxng_image="${image_refs[3]}"
+
 usage() {
   cat <<'EOF'
 Usage:
@@ -249,6 +254,34 @@ split_image_ref() {
   image_digest="sha256:${ref##*@sha256:}"
   image_repository="${image_without_digest%:*}"
   image_tag="${image_without_digest##*:}"
+}
+
+render_image_template() {
+  local source="$1"
+  local dest="$2"
+  local mode="$3"
+  local tmp
+  tmp="$(mktemp)"
+
+  OPENCLAW_GATEWAY_IMAGE="${openclaw_gateway_image}" \
+    OPENCLAW_BROWSER_IMAGE="${openclaw_browser_image}" \
+    LITELLM_IMAGE="${litellm_image}" \
+    SEARXNG_IMAGE="${searxng_image}" \
+    jq -nr --rawfile template "${source}" '
+      $template
+      | gsub("__OPENCLAW_GATEWAY_IMAGE__"; env.OPENCLAW_GATEWAY_IMAGE)
+      | gsub("__OPENCLAW_BROWSER_IMAGE__"; env.OPENCLAW_BROWSER_IMAGE)
+      | gsub("__LITELLM_IMAGE__"; env.LITELLM_IMAGE)
+      | gsub("__SEARXNG_IMAGE__"; env.SEARXNG_IMAGE)
+    ' > "${tmp}"
+
+  if grep -q '__[A-Z0-9_]*_IMAGE__' "${tmp}"; then
+    rm -f "${tmp}"
+    die "unresolved image placeholder while rendering ${source}"
+  fi
+
+  install -m "${mode}" "${tmp}" "${dest}"
+  rm -f "${tmp}"
 }
 
 print_images() {
@@ -830,21 +863,21 @@ service_name() {
 
 copy_quadlet_units() {
   ensure_user_dirs
-  install -m 0644 "${repo_root}/deploy/openclaw/openclaw.pod" "${HOME}/.config/containers/systemd/openclaw.pod"
-  install -m 0644 "${repo_root}/deploy/openclaw/openclaw-browser.container" "${HOME}/.config/containers/systemd/openclaw-browser.container"
-  install -m 0644 "${repo_root}/deploy/openclaw/litellm.container" "${HOME}/.config/containers/systemd/litellm.container"
-  install -m 0644 "${repo_root}/deploy/openclaw/searxng.container" "${HOME}/.config/containers/systemd/searxng.container"
-  install -m 0644 "${repo_root}/deploy/openclaw/openclaw-gateway.container" "${HOME}/.config/containers/systemd/openclaw-gateway.container"
+  render_image_template "${repo_root}/deploy/openclaw/openclaw.pod" "${HOME}/.config/containers/systemd/openclaw.pod" 0644
+  render_image_template "${repo_root}/deploy/openclaw/openclaw-browser.container" "${HOME}/.config/containers/systemd/openclaw-browser.container" 0644
+  render_image_template "${repo_root}/deploy/openclaw/litellm.container" "${HOME}/.config/containers/systemd/litellm.container" 0644
+  render_image_template "${repo_root}/deploy/openclaw/searxng.container" "${HOME}/.config/containers/systemd/searxng.container" 0644
+  render_image_template "${repo_root}/deploy/openclaw/openclaw-gateway.container" "${HOME}/.config/containers/systemd/openclaw-gateway.container" 0644
 }
 
 copy_fallback_units() {
   ensure_user_dirs
   local unit helper
   for unit in "${repo_root}"/deploy/openclaw-systemd/*.service; do
-    install -m 0644 "${unit}" "${HOME}/.config/systemd/user/$(basename "${unit}")"
+    render_image_template "${unit}" "${HOME}/.config/systemd/user/$(basename "${unit}")" 0644
   done
   for helper in "${repo_root}"/deploy/openclaw-systemd/bin/*; do
-    install -m 0755 "${helper}" "${HOME}/.local/bin/$(basename "${helper}")"
+    render_image_template "${helper}" "${HOME}/.local/bin/$(basename "${helper}")" 0755
   done
 }
 

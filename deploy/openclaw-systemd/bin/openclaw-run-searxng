@@ -9,4 +9,4 @@ exec /usr/bin/podman run --rm \
   -e UWSGI_WORKERS=4 \
   -e UWSGI_THREADS=4 \
   -v "${HOME}/.config/searxng:/etc/searxng:Z" \
-  docker.io/searxng/searxng:2026.4.24-a7ac696b4@sha256:c9100c29c14a77d5289263a671580226c3b8a396a1a0130d2f500f57076a0119
+  __SEARXNG_IMAGE__

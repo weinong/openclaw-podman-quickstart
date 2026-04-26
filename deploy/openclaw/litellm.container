@@ -5,7 +5,7 @@ Requires=openclaw-pod.service
 
 [Container]
 Pod=openclaw.pod
-Image=docker.litellm.ai/berriai/litellm:main-v1.82.3@sha256:067aee932b8770ed42955ee802a04abdcd369d0995b5e696bb07d6520a231b1c
+Image=__LITELLM_IMAGE__
 ContainerName=openclaw-litellm
 EnvironmentFile=%h/.config/litellm/litellm.env
 Environment=GITHUB_COPILOT_TOKEN_DIR=/data/github_copilot
