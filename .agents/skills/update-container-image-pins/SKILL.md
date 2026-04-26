@@ -1,10 +1,11 @@
 ---
-applyTo: "**"
+name: update-container-image-pins
+description: Refresh OpenClaw Podman container image tags and SHA256 digests.
 ---
 
 # Update Container Image Pins
 
-Use this workflow when asked to refresh, verify, or update container image tags and SHA256 digests.
+Use this skill when asked to refresh, verify, or update container image tags and SHA256 digests.
 
 ## Goal
 

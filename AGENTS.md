@@ -4,10 +4,10 @@ This repo uses a single user-run bootstrap entrypoint, `oc.sh`. Prefer small, fo
 
 ## Container Image Pins
 
-When updating container image tags or SHA256 digests, follow the Copilot-compatible instructions in:
+When updating container image tags or SHA256 digests, follow the skill in:
 
 ```text
-.github/instructions/update-container-image-pins.instructions.md
+.agents/skills/update-container-image-pins/SKILL.md
 ```
 
 Key requirements:
