@@ -1,7 +1,8 @@
 model_list:
-  - model_name: github_copilot/gpt-4.1
+  # GitHub Copilot subscription models
+  - model_name: github_copilot/gpt-4
     litellm_params:
-      model: github_copilot/gpt-4.1
+      model: github_copilot/gpt-4
 
   - model_name: github_copilot/gpt-5.1-codex
     model_info:
@@ -14,6 +15,43 @@ model_list:
       mode: embedding
     litellm_params:
       model: github_copilot/text-embedding-3-small
+
+  # ChatGPT subscription models
+  - model_name: chatgpt/gpt-5.4
+    model_info:
+      mode: responses
+    litellm_params:
+      model: chatgpt/gpt-5.4
+
+  - model_name: chatgpt/gpt-5.4-pro
+    model_info:
+      mode: responses
+    litellm_params:
+      model: chatgpt/gpt-5.4-pro
+
+  - model_name: chatgpt/gpt-5.3-codex
+    model_info:
+      mode: responses
+    litellm_params:
+      model: chatgpt/gpt-5.3-codex
+
+  - model_name: chatgpt/gpt-5.3-codex-spark
+    model_info:
+      mode: responses
+    litellm_params:
+      model: chatgpt/gpt-5.3-codex-spark
+
+  - model_name: chatgpt/gpt-5.3-instant
+    model_info:
+      mode: responses
+    litellm_params:
+      model: chatgpt/gpt-5.3-instant
+
+  - model_name: chatgpt/gpt-5.3-chat-latest
+    model_info:
+      mode: responses
+    litellm_params:
+      model: chatgpt/gpt-5.3-chat-latest
 
 litellm_settings:
   drop_params: true
