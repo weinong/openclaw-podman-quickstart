@@ -107,7 +107,16 @@ sudo ./scripts/bootstrap-os.sh openclaw
 sudo ./scripts/install-openclaw-podman.sh openclaw
 ```
 
-Start LiteLLM and trigger the first GitHub Copilot model request. The first request prints a GitHub device-code login URL/code in the LiteLLM logs:
+The installer copies these Quadlet files into `~openclaw/.config/containers/systemd/` and starts the pod, browser, and LiteLLM services when their unit files are present:
+
+```text
+deploy/openclaw/openclaw.pod
+deploy/openclaw/openclaw-browser.container
+deploy/openclaw/litellm.container
+deploy/openclaw/openclaw-gateway.container
+```
+
+Then start LiteLLM and trigger the first GitHub Copilot model request. The first request prints a GitHub device-code login URL/code in the LiteLLM logs:
 
 ```bash
 sudo -iu openclaw
@@ -148,6 +157,73 @@ Complete the device-code login in a browser. Then run the doctor:
 
 ```bash
 ./openclaw-podman-quickstart/scripts/doctor-openclaw-podman.sh
+```
+
+## Persistent browser service
+
+`deploy/openclaw/openclaw-browser.container` defines the persistent Chromium CDP browser service. The install script copies it to:
+
+```text
+~openclaw/.config/containers/systemd/openclaw-browser.container
+```
+
+and starts the generated user service:
+
+```text
+openclaw-browser.service
+```
+
+To install or refresh just the deployed unit files, run from the repo checkout:
+
+```bash
+sudo ./scripts/install-openclaw-podman.sh openclaw
+```
+
+To manually reload and restart the browser service:
+
+```bash
+sudo -iu openclaw
+systemctl --user daemon-reload
+systemctl --user restart openclaw-pod.service
+systemctl --user restart openclaw-browser.service
+```
+
+Check status and logs:
+
+```bash
+systemctl --user status openclaw-browser.service --no-pager
+journalctl --user -u openclaw-browser.service -f
+podman logs -f openclaw-browser
+```
+
+Verify the CDP endpoint:
+
+```bash
+curl -fsS http://127.0.0.1:9222/json/version | jq .
+curl -fsS http://127.0.0.1:9222/json/list | jq .
+```
+
+OpenClaw is preconfigured to use this endpoint:
+
+```json
+{
+  "browser": {
+    "enabled": true,
+    "defaultProfile": "default",
+    "profiles": {
+      "default": {
+        "driver": "cdp",
+        "cdpUrl": "http://127.0.0.1:9222"
+      }
+    }
+  }
+}
+```
+
+Run OpenClaw's browser doctor if the CLI is available:
+
+```bash
+openclaw browser --browser-profile default doctor
 ```
 
 ## LiteLLM sidecar
