@@ -32,7 +32,22 @@ sudo apt-get install -y \
 
 sudo useradd --create-home --shell /bin/bash openclaw || true
 sudo loginctl enable-linger openclaw
+sudo systemctl start "user@$(id -u openclaw).service"
+
+cat <<'EOF' | sudo -u openclaw tee -a /home/openclaw/.profile >/dev/null
+
+# Make systemctl --user work in headless sudo/su login shells.
+if [ -z "${XDG_RUNTIME_DIR:-}" ] && [ -d "/run/user/$(id -u)" ]; then
+  export XDG_RUNTIME_DIR="/run/user/$(id -u)"
+fi
+
+if [ -z "${DBUS_SESSION_BUS_ADDRESS:-}" ] && [ -S "${XDG_RUNTIME_DIR:-}/bus" ]; then
+  export DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
+fi
+EOF
 ```
+
+`oc.sh` exports the user-systemd environment itself, but the `.profile` snippet makes manual `systemctl --user` commands work in headless `sudo -iu openclaw` shells.
 
 ## Phase 2: One-Shot Install
 

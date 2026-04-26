@@ -419,7 +419,36 @@ config_discord() {
   echo "Discord token stored in: ${gateway_env}"
 }
 
+ensure_user_systemd_env() {
+  local uid
+  uid="$(id -u)"
+
+  export XDG_RUNTIME_DIR="${XDG_RUNTIME_DIR:-/run/user/${uid}}"
+
+  if [[ -z "${DBUS_SESSION_BUS_ADDRESS:-}" && -S "${XDG_RUNTIME_DIR}/bus" ]]; then
+    export DBUS_SESSION_BUS_ADDRESS="unix:path=${XDG_RUNTIME_DIR}/bus"
+  fi
+}
+
+require_user_systemd_bus() {
+  ensure_user_systemd_env
+
+  if [[ ! -d "${XDG_RUNTIME_DIR}" || ! -S "${XDG_RUNTIME_DIR}/bus" ]]; then
+    cat >&2 <<EOF
+error: user systemd bus is not available at ${XDG_RUNTIME_DIR}/bus
+
+Ask the VM admin to run:
+  sudo loginctl enable-linger $(id -un)
+  sudo systemctl start user@$(id -u).service
+
+Then start a new shell as $(id -un) and retry.
+EOF
+    exit 1
+  fi
+}
+
 systemctl_user() {
+  require_user_systemd_bus
   systemctl --user "$@"
 }
 
@@ -722,6 +751,7 @@ main() {
       assert_openclaw_user "${allow_current_user}"
       set -- "${remaining_args[@]}"
       mapfile -t selected_services < <(service_name "${1:-gateway}")
+      require_user_systemd_bus
       journalctl --user -u "${selected_services[@]}" -f
       ;;
     doctor)
