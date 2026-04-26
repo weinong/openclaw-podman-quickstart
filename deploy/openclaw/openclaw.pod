@@ -5,6 +5,7 @@ Description=OpenClaw pod
 PodName=openclaw
 PublishPort=127.0.0.1:18789:18789
 PublishPort=127.0.0.1:18791:18791
+PublishPort=127.0.0.1:4000:4000
 
 [Install]
 WantedBy=default.target
