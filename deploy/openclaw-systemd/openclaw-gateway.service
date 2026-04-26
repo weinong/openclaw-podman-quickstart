@@ -1,0 +1,16 @@
+[Unit]
+Description=OpenClaw gateway container
+After=openclaw-pod.service openclaw-browser.service litellm.service searxng.service
+Requires=openclaw-pod.service openclaw-browser.service litellm.service searxng.service
+
+[Service]
+Restart=always
+RestartSec=5
+TimeoutStartSec=300
+EnvironmentFile=%h/.config/openclaw-gateway/gateway.env
+ExecStartPre=-/usr/bin/podman rm -f openclaw-gateway
+ExecStart=%h/.local/bin/openclaw-run-gateway
+ExecStop=/usr/bin/podman stop openclaw-gateway
+
+[Install]
+WantedBy=default.target
