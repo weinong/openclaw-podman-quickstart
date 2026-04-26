@@ -4,7 +4,12 @@ set -euo pipefail
 exec /usr/bin/podman run --rm \
   --name openclaw-litellm \
   --pod openclaw \
-  --env-file "${HOME}/.config/litellm/litellm.env" \
+  -e LITELLM_MASTER_KEY \
+  -e OPENAI_API_KEY \
+  -e ANTHROPIC_API_KEY \
+  -e AZURE_API_KEY \
+  -e AZURE_API_BASE \
+  -e AZURE_API_VERSION \
   -e GITHUB_COPILOT_TOKEN_DIR=/data/github_copilot \
   -e CHATGPT_TOKEN_DIR=/data/chatgpt \
   -v "${HOME}/.config/litellm/config.yaml:/app/config.yaml:Z" \
