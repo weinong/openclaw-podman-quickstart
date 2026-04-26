@@ -103,10 +103,33 @@ Usage:
   DISCORD_BOT_TOKEN='...' ./oc.sh config discord [options] [--allow-current-user]
 
 Targets:
-  openclaw                Create or patch ~/.openclaw/openclaw.json.
-  litellm                 Create LiteLLM env/config and sync gateway API key.
-  searxng                 Create SearXNG settings and patch OpenClaw search config.
-  discord                 Configure Discord allowlists and gateway token env.
+  openclaw
+    Creates ~/.openclaw/openclaw.json if missing.
+    Enables the default persistent browser profile at http://127.0.0.1:9222.
+    Adds the LiteLLM provider at http://127.0.0.1:4000.
+    Sets the default primary model to litellm/github_copilot/gpt-4.
+
+  litellm
+    Creates ~/.config/litellm/litellm.env with LITELLM_MASTER_KEY.
+    Copies config/litellm/config.yaml to ~/.config/litellm/config.yaml.
+    Writes LITELLM_API_KEY into ~/.config/openclaw-gateway/gateway.env.
+    Creates LiteLLM token-cache directories under ~/.local/share/litellm.
+
+  searxng
+    Creates ~/.config/searxng/settings.yml if missing, with a generated secret.
+    Leaves existing SearXNG settings unchanged.
+    Writes SEARXNG_BASE_URL into ~/.config/openclaw-gateway/gateway.env.
+    Patches ~/.openclaw/openclaw.json to use SearXNG for web search.
+
+  discord
+    Requires DISCORD_BOT_TOKEN in the environment.
+    Writes DISCORD_BOT_TOKEN into ~/.config/openclaw-gateway/gateway.env.
+    Patches ~/.openclaw/openclaw.json with Discord DM/guild allowlists.
+
+Notes:
+  Config commands do not install systemd units or start containers.
+  Without --allow-current-user, config commands must run as user openclaw.
+  --allow-current-user writes to the current user's HOME, not /home/openclaw.
 
 Discord options:
   --dm-user ID            Allowed Discord DM user. Repeatable.
