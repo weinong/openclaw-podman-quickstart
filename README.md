@@ -16,9 +16,9 @@ This repo focuses on **bootstrap**, not snapshot/backup. It is meant to help you
   - a LiteLLM proxy sidecar
   - an optional OpenClaw gateway container skeleton
 - A minimal OpenClaw browser profile config pointing to the persistent CDP endpoint.
-- A LiteLLM provider config for OpenClaw, with the default OpenClaw model set to `litellm/openai/gpt-4.1-mini`.
+- A LiteLLM provider config for OpenClaw, with the default OpenClaw model set to `litellm/github_copilot/gpt-4`.
 - Optional Discord bot bootstrap with token stored in a user-only env file and access policy stored in OpenClaw config.
-- Optional Codex/Copilot subscription CLI auth guidance for tool-style usage.
+- Optional Codex/Copilot CLI auth guidance for tool-style usage.
 
 ## Assumptions
 
@@ -27,7 +27,7 @@ This repo focuses on **bootstrap**, not snapshot/backup. It is meant to help you
 - You want a persistent browser endpoint for OpenClaw, not short-lived Browserless sessions.
 - Chrome CDP should stay local to the pod/host and should not be exposed publicly.
 - LiteLLM should run locally as the OpenClaw model gateway on `127.0.0.1:4000`.
-- Codex/Copilot subscription login is useful for CLI tools, but it is separate from LiteLLM provider routing.
+- LiteLLM should manage GitHub Copilot OAuth device-code login for the default model provider.
 - Discord access should be explicit: allowed DM users, allowed server/guild IDs, and private-server mention behavior.
 
 ## Prerequisite packages
@@ -107,21 +107,32 @@ sudo ./scripts/bootstrap-os.sh openclaw
 sudo ./scripts/install-openclaw-podman.sh openclaw
 ```
 
-Then add a real provider API key for the default LiteLLM config:
-
-```bash
-OPENAI_API_KEY='YOUR_OPENAI_API_KEY' \
-  sudo -E bash ./scripts/configure-litellm.sh openclaw
-```
-
-Restart LiteLLM after setting the key:
+Start LiteLLM and trigger the first GitHub Copilot model request. The first request prints a GitHub device-code login URL/code in the LiteLLM logs:
 
 ```bash
 sudo -iu openclaw
 systemctl --user restart litellm.service
+journalctl --user -u litellm.service -f
 ```
 
-Run the doctor:
+From another terminal:
+
+```bash
+sudo -iu openclaw
+set -a
+source ~/.config/litellm/litellm.env
+set +a
+
+curl -s http://127.0.0.1:4000/v1/chat/completions \
+  -H "Authorization: Bearer ${LITELLM_MASTER_KEY}" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model": "github_copilot/gpt-4",
+    "messages": [{"role": "user", "content": "Say hello from GitHub Copilot through LiteLLM."}]
+  }' | jq .
+```
+
+Complete the device-code login in a browser. Then run the doctor:
 
 ```bash
 ./openclaw-podman-quickstart/scripts/doctor-openclaw-podman.sh
@@ -132,7 +143,7 @@ Run the doctor:
 The default setup runs LiteLLM in the same Podman pod as OpenClaw:
 
 ```text
-OpenClaw gateway -> http://127.0.0.1:4000 -> LiteLLM -> upstream model provider
+OpenClaw gateway -> http://127.0.0.1:4000 -> LiteLLM -> GitHub Copilot OAuth/device-code provider
 ```
 
 The installer creates:
@@ -140,6 +151,7 @@ The installer creates:
 ```text
 ~openclaw/.config/litellm/config.yaml
 ~openclaw/.config/litellm/litellm.env
+~openclaw/.local/share/litellm/github_copilot
 ~openclaw/.config/openclaw-gateway/gateway.env
 ```
 
@@ -159,27 +171,27 @@ The OpenClaw config uses:
   "agents": {
     "defaults": {
       "model": {
-        "primary": "litellm/openai/gpt-4.1-mini"
+        "primary": "litellm/github_copilot/gpt-4"
       }
     }
   }
 }
 ```
 
-The default LiteLLM config expects `OPENAI_API_KEY`. To use another provider, edit `~openclaw/.config/litellm/config.yaml` and `~openclaw/.config/litellm/litellm.env`, then update the OpenClaw model IDs to match the LiteLLM `model_name` values.
+The default LiteLLM config uses GitHub Copilot OAuth device-code login. To use another provider, edit `~openclaw/.config/litellm/config.yaml` and `~openclaw/.config/litellm/litellm.env`, then update the OpenClaw model IDs to match the LiteLLM `model_name` values.
 
 See [docs/litellm-bootstrap.md](docs/litellm-bootstrap.md) for details.
 
-## Optional: Codex and Copilot subscription CLI auth
+## Optional: Codex and Copilot CLI auth
 
-Codex and Copilot subscription login is useful when OpenClaw invokes those CLIs as tools. It is separate from LiteLLM model routing.
+Codex and Copilot CLI login is useful when OpenClaw invokes those CLIs as tools. Copilot model routing through LiteLLM is handled separately by the LiteLLM GitHub Copilot provider.
 
 ```text
-LiteLLM: model gateway with API keys/provider credentials
-Codex/Copilot CLI: tool credentials with OAuth/device-code login
+LiteLLM: model gateway with GitHub Copilot OAuth/device-code provider
+Codex/Copilot CLI: tool credentials for invoking those CLIs directly
 ```
 
-Run CLI login as the same service user that runs OpenClaw:
+Run CLI login as the same service user that runs OpenClaw only if you need the CLIs themselves:
 
 ```bash
 sudo -iu openclaw
@@ -278,7 +290,8 @@ When OpenClaw and the browser run in the same Podman pod, that address resolves 
 - Do not expose LiteLLM port `4000` beyond host loopback unless you have explicit auth, TLS, and network policy.
 - Do not commit real `openclaw.json` files if they contain auth profiles, tokens, API keys, or local machine secrets.
 - Do not commit `~openclaw/.config/openclaw-gateway/gateway.env`; it contains runtime secrets such as `DISCORD_BOT_TOKEN` and `LITELLM_API_KEY`.
-- Do not commit `~openclaw/.config/litellm/litellm.env`; it contains upstream provider keys such as `OPENAI_API_KEY`.
+- Do not commit `~openclaw/.config/litellm/litellm.env`; it contains the LiteLLM master key.
+- Do not commit `~openclaw/.local/share/litellm/github_copilot`; it contains OAuth-derived Copilot credentials.
 - Treat Codex/Copilot CLI credential directories as secrets; do not bake them into container images.
 - This repo intentionally avoids snapshotting runtime state.
 - Treat the OpenClaw gateway, LiteLLM, and browser CDP endpoint as sensitive control surfaces.
@@ -287,5 +300,5 @@ When OpenClaw and the browser run in the same Podman pod, that address resolves 
 
 - [Bootstrap OpenClaw with rootless Podman](docs/bootstrap.md)
 - [Bootstrap LiteLLM sidecar for OpenClaw](docs/litellm-bootstrap.md)
-- [Codex and Copilot subscription CLI auth](docs/subscription-cli-auth.md)
+- [Codex and Copilot CLI auth](docs/subscription-cli-auth.md)
 - [Bootstrap Discord for OpenClaw](docs/discord-bootstrap.md)
