@@ -1,8 +1,8 @@
 # Bootstrap SearXNG for OpenClaw
 
-This guide runs SearXNG as a rootless Podman sidecar and configures OpenClaw to use it as the `web_search` provider.
+This guide runs SearXNG as a rootless Podman sidecar and configures OpenClaw to use it as the `web_search` provider through the bundled SearXNG plugin.
 
-## Target architecture
+## Target Architecture
 
 ```text
 Podman pod: openclaw
@@ -20,22 +20,22 @@ The pod publishes SearXNG on host loopback only:
 127.0.0.1:8080:8080
 ```
 
-## Files installed
+## Files Installed
 
 The installer copies or creates:
 
 ```text
-~openclaw/.config/containers/systemd/searxng.container
-~openclaw/.config/searxng/settings.yml
-~openclaw/.config/openclaw-gateway/gateway.env
-~openclaw/.openclaw/openclaw.json
+~/.config/containers/systemd/searxng.container
+~/.config/searxng/settings.yml
+~/.config/openclaw-gateway/gateway.env
+~/.openclaw/openclaw.json
 ```
 
 `settings.yml` contains a generated `server.secret_key`. Do not commit the generated runtime file.
 
-## OpenClaw config
+## OpenClaw Config
 
-The bootstrap script patches this search provider block into `~openclaw/.openclaw/openclaw.json`:
+`./oc.sh config searxng` patches this search provider block into `~/.openclaw/openclaw.json`:
 
 ```json
 {
@@ -49,6 +49,7 @@ The bootstrap script patches this search provider block into `~openclaw/.opencla
   "plugins": {
     "entries": {
       "searxng": {
+        "enabled": true,
         "config": {
           "webSearch": {
             "baseUrl": "http://127.0.0.1:8080/",
@@ -68,37 +69,18 @@ It also adds this environment variable to the gateway env file:
 SEARXNG_BASE_URL=http://127.0.0.1:8080/
 ```
 
-## SearXNG JSON API
+## Install or Refresh
 
-OpenClaw uses SearXNG's JSON search endpoint:
-
-```text
-/search?q=<query>&format=json
-```
-
-The default `settings.yml` enables:
-
-```yaml
-search:
-  formats:
-    - html
-    - json
-```
-
-Without `json` in `search.formats`, OpenClaw web search will not work correctly.
-
-## Install or refresh
-
-From the repo checkout:
+Full install:
 
 ```bash
-sudo ./scripts/install-openclaw-podman.sh openclaw
+./oc.sh install
 ```
 
-Or run only the SearXNG config bootstrap:
+Only refresh SearXNG config:
 
 ```bash
-sudo ./scripts/configure-searxng.sh openclaw
+./oc.sh config searxng
 ```
 
 Optional overrides:
@@ -107,54 +89,36 @@ Optional overrides:
 SEARXNG_BASE_URL='http://127.0.0.1:8080/' \
 SEARXNG_CATEGORIES='general,news' \
 SEARXNG_LANGUAGE='en' \
-  sudo -E ./scripts/configure-searxng.sh openclaw
+  ./oc.sh config searxng
 ```
 
-## Start or restart SearXNG
-
-As the service user:
+## Start or Restart SearXNG
 
 ```bash
-sudo -iu openclaw
-systemctl --user daemon-reload
-systemctl --user restart searxng.service
-```
-
-Check logs:
-
-```bash
-journalctl --user -u searxng.service -f
+./oc.sh restart searxng
+./oc.sh logs searxng
 ```
 
 ## Validate SearXNG
 
-As the service user:
-
 ```bash
-sudo -iu openclaw
 curl -fsS http://127.0.0.1:8080/ >/dev/null && echo OK
 curl -fsS 'http://127.0.0.1:8080/search?q=openclaw&format=json' | jq '.query, (.results | length)'
+./oc.sh doctor
 ```
 
-You can also run the general doctor:
-
-```bash
-./openclaw-podman-quickstart/scripts/doctor-openclaw-podman.sh
-```
-
-## Restart OpenClaw gateway
+## Restart OpenClaw Gateway
 
 After changing SearXNG config or `SEARXNG_BASE_URL`:
 
 ```bash
-sudo -iu openclaw
-systemctl --user restart searxng.service
-systemctl --user restart openclaw-gateway.service
+./oc.sh restart searxng
+./oc.sh restart gateway
 ```
 
-## Security notes
+## Security Notes
 
 - Bind SearXNG only to loopback unless you intentionally want to expose it.
-- Do not commit generated `~openclaw/.config/searxng/settings.yml`; it contains `server.secret_key`.
+- Do not commit generated `~/.config/searxng/settings.yml`; it contains `server.secret_key`.
 - For public SearXNG, use HTTPS and review SearXNG production hardening guidance.
 - The default quickstart disables SearXNG limiter because the service is intended to be local-only.

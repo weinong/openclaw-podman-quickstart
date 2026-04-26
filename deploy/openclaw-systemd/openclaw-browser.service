@@ -8,7 +8,7 @@ Restart=always
 RestartSec=5
 TimeoutStartSec=300
 ExecStartPre=-/usr/bin/podman rm -f openclaw-browser
-ExecStart=/usr/bin/podman run --rm --name openclaw-browser --pod openclaw --shm-size=2g -v %h/.local/share/openclaw-browser:/data:Z docker.io/chromedp/headless-shell:latest
+ExecStart=/usr/bin/podman run --rm --name openclaw-browser --pod openclaw --shm-size=2g -v %h/.local/share/openclaw-browser:/data:Z docker.io/chromedp/headless-shell:148.0.7778.56@sha256:8b36bc4bca3f394103db8a2e60f0053969a277b3918abc39acfee819168c4f79
 ExecStop=/usr/bin/podman stop openclaw-browser
 
 [Install]

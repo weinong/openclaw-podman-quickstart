@@ -1,10 +1,10 @@
-# Bootstrap LiteLLM sidecar for OpenClaw
+# Bootstrap LiteLLM Sidecar for OpenClaw
 
 This guide runs LiteLLM as a sidecar in the same rootless Podman pod as OpenClaw and preconfigures OpenClaw to use it as the default model provider.
 
-The default model in this repo is **GitHub Copilot via LiteLLM**, and the same LiteLLM sidecar also exposes **ChatGPT subscription models**. LiteLLM manages OAuth device-code flows for both providers and caches the resulting tokens under the `openclaw` service user's persistent data directory.
+The default model in this repo is **GitHub Copilot via LiteLLM**, and the same LiteLLM sidecar also exposes **ChatGPT subscription models**. LiteLLM manages OAuth device-code flows for both providers and caches the resulting tokens under the `openclaw` user's persistent data directory.
 
-## Target architecture
+## Target Architecture
 
 ```text
 Podman pod: openclaw
@@ -24,81 +24,61 @@ The pod publishes LiteLLM on host loopback only:
 127.0.0.1:4000:4000
 ```
 
-## Files installed
+## Files Installed
 
-The installer copies:
-
-```text
-~openclaw/.config/containers/systemd/litellm.container
-~openclaw/.config/litellm/config.yaml
-~openclaw/.config/litellm/litellm.env
-```
-
-It also creates or updates:
+The installer copies or creates:
 
 ```text
-~openclaw/.local/share/litellm/github_copilot
-~openclaw/.local/share/litellm/chatgpt
-~openclaw/.config/openclaw-gateway/gateway.env
-~openclaw/.openclaw/openclaw.json
+~/.config/containers/systemd/litellm.container
+~/.config/litellm/config.yaml
+~/.config/litellm/litellm.env
+~/.local/share/litellm/github_copilot
+~/.local/share/litellm/chatgpt
+~/.config/openclaw-gateway/gateway.env
+~/.openclaw/openclaw.json
 ```
 
-## Configure LiteLLM gateway auth
+## Configure LiteLLM Gateway Auth
 
 No upstream API key is required for the default GitHub Copilot and ChatGPT provider config.
 
-LiteLLM still needs a local master key so OpenClaw can authenticate to the LiteLLM proxy. The installer generates this automatically:
-
-```text
-~openclaw/.config/litellm/litellm.env
-```
-
-Example:
+LiteLLM still needs a local master key so OpenClaw can authenticate to the LiteLLM proxy. The one-shot installer generates this automatically:
 
 ```bash
-LITELLM_MASTER_KEY=sk-litellm-...
+./oc.sh install
 ```
-
-The installer also writes the same value to the OpenClaw gateway env file as `LITELLM_API_KEY`:
-
-```text
-~openclaw/.config/openclaw-gateway/gateway.env
-```
-
-OpenClaw uses `LITELLM_API_KEY` to authenticate to LiteLLM.
 
 You can regenerate or set the key explicitly with:
 
 ```bash
-sudo ./scripts/configure-litellm.sh openclaw
+./oc.sh config litellm
 ```
 
 or:
 
 ```bash
-LITELLM_MASTER_KEY='sk-litellm-custom-value' \
-  sudo -E bash ./scripts/configure-litellm.sh openclaw
+LITELLM_MASTER_KEY='sk-litellm-custom-value' ./oc.sh config litellm
 ```
 
-## GitHub Copilot OAuth device-code login
+OpenClaw uses `LITELLM_API_KEY` from `~/.config/openclaw-gateway/gateway.env` to authenticate to LiteLLM.
+
+## GitHub Copilot OAuth Device-Code Login
 
 Start or restart LiteLLM:
 
 ```bash
-sudo -iu openclaw
-systemctl --user restart litellm.service
+./oc.sh restart litellm
 ```
 
-Then watch logs:
+Watch logs:
 
 ```bash
-journalctl --user -u litellm.service -f
+./oc.sh logs litellm
 ```
 
 Trigger the first Copilot model request from another terminal:
 
 ```bash
-sudo -iu openclaw
 set -a
 source ~/.config/litellm/litellm.env
 set +a
@@ -115,21 +95,14 @@ curl -s http://127.0.0.1:4000/v1/chat/completions \
 On the first request, LiteLLM should print a GitHub device-code login URL/code in the service logs. Complete the login in a browser. After successful login, LiteLLM caches the Copilot token under:
 
 ```text
-~openclaw/.local/share/litellm/github_copilot
+~/.local/share/litellm/github_copilot
 ```
 
-The Quadlet sets:
-
-```bash
-GITHUB_COPILOT_TOKEN_DIR=/data/github_copilot
-```
-
-## ChatGPT OAuth device-code login
+## ChatGPT OAuth Device-Code Login
 
 Trigger the first ChatGPT model request:
 
 ```bash
-sudo -iu openclaw
 set -a
 source ~/.config/litellm/litellm.env
 set +a
@@ -146,24 +119,10 @@ curl -s http://127.0.0.1:4000/v1/responses \
 On the first request, LiteLLM should print a ChatGPT device-code login URL/code in the service logs. Complete the login in a browser. After successful login, LiteLLM caches the ChatGPT token under:
 
 ```text
-~openclaw/.local/share/litellm/chatgpt
+~/.local/share/litellm/chatgpt
 ```
 
-The Quadlet sets:
-
-```bash
-CHATGPT_TOKEN_DIR=/data/chatgpt
-```
-
-The Quadlet mounts:
-
-```text
-~openclaw/.local/share/litellm:/data
-```
-
-so both provider token caches survive container restarts.
-
-## Default LiteLLM models
+## Default LiteLLM Models
 
 The repo's default `config/litellm/config.yaml` exposes these model names:
 
@@ -179,111 +138,47 @@ chatgpt/gpt-5.3-instant
 chatgpt/gpt-5.3-chat-latest
 ```
 
-OpenClaw is preconfigured to use:
+OpenClaw is preconfigured to use `litellm/github_copilot/gpt-4` as the default primary model. ChatGPT models are available through the same `litellm` provider and can be selected explicitly by model ID.
 
-```text
-litellm/github_copilot/gpt-4
-```
+## OpenClaw Config
 
-as the default primary model. ChatGPT models are available through the same `litellm` provider and can be selected explicitly by model ID.
-
-## OpenClaw config
-
-The installer patches this provider block into `~openclaw/.openclaw/openclaw.json`:
-
-```json
-{
-  "models": {
-    "providers": {
-      "litellm": {
-        "baseUrl": "http://127.0.0.1:4000",
-        "apiKey": "${LITELLM_API_KEY}",
-        "api": "openai-completions",
-        "models": [
-          {
-            "id": "github_copilot/gpt-4",
-            "name": "GitHub Copilot GPT-4 via LiteLLM",
-            "reasoning": false,
-            "input": ["text"],
-            "contextWindow": 128000,
-            "maxTokens": 8192
-          },
-          {
-            "id": "chatgpt/gpt-5.4",
-            "name": "ChatGPT GPT-5.4 via LiteLLM",
-            "reasoning": true,
-            "input": ["text", "image"],
-            "contextWindow": 128000,
-            "maxTokens": 32768
-          }
-        ]
-      }
-    }
-  },
-  "agents": {
-    "defaults": {
-      "model": {
-        "primary": "litellm/github_copilot/gpt-4"
-      }
-    }
-  }
-}
-```
-
-## Start or restart services
-
-As the service user:
+OpenClaw model config is managed independently:
 
 ```bash
-sudo -iu openclaw
-systemctl --user daemon-reload
-systemctl --user restart litellm.service
-systemctl --user restart openclaw-gateway.service
+./oc.sh config openclaw
 ```
 
-Check logs:
-
-```bash
-journalctl --user -u litellm.service -f
-```
+That patches the LiteLLM provider block and default model into `~/.openclaw/openclaw.json`.
 
 ## Validate LiteLLM
 
-As the service user:
-
 ```bash
-sudo -iu openclaw
 set -a
 source ~/.config/litellm/litellm.env
 set +a
 
 curl -fsS http://127.0.0.1:4000/health/liveliness | jq .
-
 curl -fsS http://127.0.0.1:4000/models \
   -H "Authorization: Bearer ${LITELLM_MASTER_KEY}" | jq .
+
+./oc.sh doctor
 ```
 
-You can also run:
-
-```bash
-./openclaw-podman-quickstart/scripts/doctor-openclaw-podman.sh
-```
-
-## Switching to another provider
+## Switching to Another Provider
 
 Edit:
 
 ```text
-~openclaw/.config/litellm/config.yaml
-~openclaw/.config/litellm/litellm.env
+~/.config/litellm/config.yaml
+~/.config/litellm/litellm.env
 ```
 
-For example, add `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`, then change `model_list` entries to the provider model names you want. Update the OpenClaw model IDs in `~openclaw/.openclaw/openclaw.json` so they match LiteLLM's exposed `model_name` values.
+For example, add `OPENAI_API_KEY` or `ANTHROPIC_API_KEY`, then change `model_list` entries to the provider model names you want. Update the OpenClaw model IDs in `~/.openclaw/openclaw.json` so they match LiteLLM's exposed `model_name` values.
 
-## Security notes
+## Security Notes
 
-- Do not commit `~openclaw/.config/litellm/litellm.env`.
-- Do not commit `~openclaw/.local/share/litellm/github_copilot`; it contains OAuth-derived Copilot credentials.
-- Do not commit `~openclaw/.local/share/litellm/chatgpt`; it contains OAuth-derived ChatGPT credentials.
+- Do not commit `~/.config/litellm/litellm.env`.
+- Do not commit `~/.local/share/litellm/github_copilot`; it contains OAuth-derived Copilot credentials.
+- Do not commit `~/.local/share/litellm/chatgpt`; it contains OAuth-derived ChatGPT credentials.
 - Do not expose port `4000` beyond host loopback unless you have explicit authentication, TLS, and network policy.
 - Prefer LiteLLM virtual keys with budgets for long-lived OpenClaw deployments.
