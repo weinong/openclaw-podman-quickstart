@@ -166,7 +166,7 @@ That command creates or patches `~/.openclaw/openclaw.json` with:
 - Gateway bind mode `lan`, for container bridge networking behind host-loopback Podman port publishing.
 - A persistent CDP browser profile at `http://127.0.0.1:9222`.
 - A LiteLLM model provider at `http://127.0.0.1:4000`.
-- The default primary model `litellm/github_copilot/gpt-4`.
+- The default primary model `litellm/github_copilot/gpt-5.4`.
 
 Other config subcommands can be run independently:
 
@@ -177,12 +177,14 @@ Other config subcommands can be run independently:
 
 ## LiteLLM Subscription Login
 
-The default LiteLLM config uses subscription-backed OAuth/device-code providers:
+The default LiteLLM config uses GitHub Copilot OAuth/device-code models:
 
 ```text
-github_copilot/gpt-4
-chatgpt/gpt-5.4
+github_copilot/gpt-5.4
+github_copilot/claude-opus-4.6
 ```
+
+ChatGPT subscription models in `config/litellm/config.yaml` are commented out by default. Uncomment only the models available to your subscription, or replace/add API-key-backed LiteLLM providers and put the required env vars in `~/.config/litellm/litellm.env`. If you change exposed `model_name` values, update the matching OpenClaw LiteLLM model IDs and `agents.defaults.model.primary` in `~/.openclaw/openclaw.json`.
 
 Watch LiteLLM logs:
 
@@ -197,12 +199,12 @@ set -a
 source ~/.config/litellm/litellm.env
 set +a
 
-curl -s http://127.0.0.1:4000/v1/chat/completions \
+curl -s http://127.0.0.1:4000/v1/responses \
   -H "Authorization: Bearer ${LITELLM_MASTER_KEY}" \
   -H 'Content-Type: application/json' \
   -d '{
-    "model": "github_copilot/gpt-4",
-    "messages": [{"role": "user", "content": "Say hello from GitHub Copilot through LiteLLM."}]
+    "model": "github_copilot/gpt-5.4",
+    "input": "Say hello from GitHub Copilot through LiteLLM."
   }' | jq .
 ```
 
@@ -210,7 +212,7 @@ Token caches are stored under:
 
 ```text
 ~/.local/share/litellm/github_copilot
-~/.local/share/litellm/chatgpt
+~/.local/share/litellm/chatgpt     # only used if ChatGPT models are enabled
 ```
 
 Treat those directories as secrets.

@@ -132,7 +132,7 @@ Targets:
     Creates ~/.openclaw/openclaw.json if missing.
     Enables the default persistent browser profile at http://127.0.0.1:9222.
     Adds the LiteLLM provider at http://127.0.0.1:4000.
-    Sets the default primary model to litellm/github_copilot/gpt-4.
+    Sets the default primary model to litellm/github_copilot/gpt-5.4.
 
   litellm
     Creates ~/.config/litellm/litellm.env with LITELLM_MASTER_KEY.
@@ -542,27 +542,27 @@ config_openclaw() {
   config_set_json "models.providers.litellm" '{
     "baseUrl": "http://127.0.0.1:4000",
     "apiKey": "${LITELLM_API_KEY}",
-    "api": "openai-completions",
+    "api": "openai-responses",
     "models": [
       {
-        "id": "github_copilot/gpt-4",
-        "name": "GitHub Copilot GPT-4 via LiteLLM",
-        "reasoning": false,
+        "id": "github_copilot/gpt-5.4",
+        "name": "GitHub Copilot GPT-5.4 via LiteLLM",
+        "reasoning": true,
         "input": ["text"],
         "contextWindow": 128000,
-        "maxTokens": 8192
+        "maxTokens": 32768
       },
       {
-        "id": "chatgpt/gpt-5.4",
-        "name": "ChatGPT GPT-5.4 via LiteLLM",
+        "id": "github_copilot/claude-opus-4.6",
+        "name": "GitHub Copilot Claude Opus 4.6 via LiteLLM",
         "reasoning": true,
         "input": ["text", "image"],
-        "contextWindow": 128000,
-        "maxTokens": 32768
+        "contextWindow": 200000,
+        "maxTokens": 32000
       }
     ]
   }'
-  config_set_path "agents.defaults.model.primary" "litellm/github_copilot/gpt-4"
+  config_set_path "agents.defaults.model.primary" "litellm/github_copilot/gpt-5.4"
 
   echo "OpenClaw config updated: ${openclaw_config}"
 }
@@ -585,9 +585,9 @@ config_litellm() {
   tmp="$(mktemp)"
   cat > "${tmp}" <<EOF
 LITELLM_MASTER_KEY=${master_key}
-# GitHub Copilot and ChatGPT providers use OAuth device flow.
-# No upstream API key is required for the default config.yaml.
-# The first model request for each provider prints a device login URL/code in LiteLLM logs.
+# GitHub Copilot uses OAuth device flow in the default config.yaml.
+# The first model request prints a device login URL/code in LiteLLM logs.
+# Uncomment or add models in config.yaml for your subscription or API-key providers.
 EOF
   install -m 0600 "${tmp}" "${litellm_env}"
   rm -f "${tmp}"
