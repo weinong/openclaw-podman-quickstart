@@ -7,6 +7,7 @@ Usage:
   DISCORD_BOT_TOKEN='...' sudo -E ./scripts/configure-discord.sh openclaw \
     --dm-user DISCORD_USER_ID \
     --guild DISCORD_GUILD_ID \
+    [--channel-id DISCORD_CHANNEL_ID] \
     [--guild-user DISCORD_USER_ID] \
     [--require-mention true|false]
 
@@ -16,10 +17,18 @@ Examples:
     --guild 987654321098765432 \
     --require-mention false
 
+  DISCORD_BOT_TOKEN='...' sudo -E ./scripts/configure-discord.sh openclaw \
+    --dm-user 123456789012345678 \
+    --guild 987654321098765432 \
+    --channel-id 111122223333444455 \
+    --require-mention false
+
 Notes:
   - The token is written to ~/.config/openclaw-gateway/gateway.env with mode 0600.
   - The token is not written to openclaw.json.
-  - Use Discord numeric user IDs and guild/server IDs.
+  - Use Discord numeric user IDs, guild/server IDs, and channel IDs.
+  - If --channel-id is omitted, the allowlisted guild is allowed without channel restriction.
+  - If one or more --channel-id values are set, OpenClaw restricts that guild to those channels.
 EOF
 }
 
@@ -30,6 +39,7 @@ require_mention="false"
 dm_users=()
 guild_users=()
 guild_ids=()
+channel_ids=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
@@ -43,6 +53,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --guild|--server)
       guild_ids+=("$2")
+      shift 2
+      ;;
+    --channel|--channel-id)
+      channel_ids+=("$2")
       shift 2
       ;;
     --require-mention)
@@ -137,12 +151,14 @@ if [[ "${#guild_users[@]}" -eq 0 ]]; then
 fi
 guild_users_json="$(printf '%s\n' "${guild_users[@]}" | jq -R . | jq -s .)"
 guild_ids_json="$(printf '%s\n' "${guild_ids[@]}" | jq -R . | jq -s .)"
+channel_ids_json="$(printf '%s\n' "${channel_ids[@]}" | jq -R . | jq -s .)"
 
 tmp_config="$(mktemp)"
 jq \
   --argjson dmUsers "${dm_json}" \
   --argjson guildUsers "${guild_users_json}" \
   --argjson guildIds "${guild_ids_json}" \
+  --argjson channelIds "${channel_ids_json}" \
   --argjson requireMention "${require_mention}" '
   .channels.discord.enabled = true |
   .channels.discord.dmPolicy = "allowlist" |
@@ -152,10 +168,27 @@ jq \
   reduce $guildIds[] as $gid (
     .;
     .channels.discord.guilds[$gid] = (
-      (.channels.discord.guilds[$gid] // {}) + {
-        requireMention: $requireMention,
-        users: $guildUsers
-      }
+      (.channels.discord.guilds[$gid] // {}) as $existing |
+      (
+        $existing + {
+          requireMention: $requireMention,
+          users: $guildUsers
+        }
+        | if ($channelIds | length) > 0 then
+            .channels = (
+              ($existing.channels // {}) |
+              reduce $channelIds[] as $cid (
+                .;
+                .[$cid] = ((.[$cid] // {}) + {
+                  allow: true,
+                  requireMention: $requireMention
+                })
+              )
+            )
+          else
+            .
+          end
+      )
     )
   ) |
   del(.channels.discord.token)
