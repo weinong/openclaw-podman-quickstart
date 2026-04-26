@@ -18,6 +18,7 @@ fi
 install -d -o "${svc_user}" -g "${svc_user}" "${home_dir}/.config/containers/systemd"
 install -d -o "${svc_user}" -g "${svc_user}" -m 0700 "${home_dir}/.config/openclaw-gateway"
 install -d -o "${svc_user}" -g "${svc_user}" -m 0700 "${home_dir}/.config/litellm"
+install -d -o "${svc_user}" -g "${svc_user}" -m 0700 "${home_dir}/.config/searxng"
 install -d -o "${svc_user}" -g "${svc_user}" -m 0700 "${home_dir}/.local/share/litellm"
 install -d -o "${svc_user}" -g "${svc_user}" -m 0700 "${home_dir}/.local/share/litellm/github_copilot"
 install -d -o "${svc_user}" -g "${svc_user}" -m 0700 "${home_dir}/.local/share/litellm/chatgpt"
@@ -62,6 +63,12 @@ if [[ -f "${repo_root}/deploy/openclaw/litellm.container" ]]; then
   install -o "${svc_user}" -g "${svc_user}" -m 0644 \
     "${repo_root}/deploy/openclaw/litellm.container" \
     "${home_dir}/.config/containers/systemd/litellm.container"
+fi
+
+if [[ -f "${repo_root}/deploy/openclaw/searxng.container" ]]; then
+  install -o "${svc_user}" -g "${svc_user}" -m 0644 \
+    "${repo_root}/deploy/openclaw/searxng.container" \
+    "${home_dir}/.config/containers/systemd/searxng.container"
 fi
 
 if [[ -f "${repo_root}/deploy/openclaw/openclaw-gateway.container" ]]; then
@@ -169,6 +176,11 @@ if [[ -n "${litellm_key}" ]]; then
   rm -f "${tmp_gateway_env}"
 fi
 
+if [[ -f "${repo_root}/scripts/configure-searxng.sh" ]]; then
+  SEARXNG_BASE_URL="${SEARXNG_BASE_URL:-http://127.0.0.1:8080/}" \
+    bash "${repo_root}/scripts/configure-searxng.sh" "${svc_user}"
+fi
+
 loginctl enable-linger "${svc_user}"
 uid="$(id -u "${svc_user}")"
 
@@ -192,9 +204,15 @@ if [[ -f "${home_dir}/.config/containers/systemd/litellm.container" ]]; then
   run_user_systemctl start litellm.service
 fi
 
+if [[ -f "${home_dir}/.config/containers/systemd/searxng.container" ]]; then
+  run_user_systemctl start searxng.service
+fi
+
 echo "Install complete for user: ${svc_user}"
 echo "LiteLLM env: ${home_dir}/.config/litellm/litellm.env"
 echo "LiteLLM Copilot token cache: ${home_dir}/.local/share/litellm/github_copilot"
 echo "LiteLLM ChatGPT token cache: ${home_dir}/.local/share/litellm/chatgpt"
+echo "SearXNG settings: ${home_dir}/.config/searxng/settings.yml"
+echo "SearXNG URL: ${SEARXNG_BASE_URL:-http://127.0.0.1:8080/}"
 echo "The first LiteLLM request to github_copilot/gpt-4 or chatgpt/gpt-5.4 will print a device login URL/code in LiteLLM logs."
 echo "Gateway unit is installed as a skeleton. Start it after OpenClaw onboarding/configuration is ready."
