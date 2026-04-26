@@ -295,6 +295,42 @@ sudo -iu openclaw
 systemctl --user restart openclaw-gateway.service
 ```
 
+## Uninstall
+
+See [docs/uninstall.md](docs/uninstall.md) for cleanup instructions.
+
+The uninstall guide covers:
+
+```text
+runtime uninstall: stop services, remove containers/pod, remove user units/helpers, keep state
+full purge: also remove OpenClaw/LiteLLM/SearXNG state, OAuth caches, images, and optionally the openclaw user
+```
+
+Minimal runtime cleanup:
+
+```bash
+svc_user=openclaw
+uid="$(id -u "$svc_user")"
+home_dir="$(getent passwd "$svc_user" | cut -d: -f6)"
+
+sudo -u "$svc_user" env \
+  XDG_RUNTIME_DIR="/run/user/${uid}" \
+  DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${uid}/bus" \
+  systemctl --user stop \
+    openclaw-gateway.service \
+    openclaw-browser.service \
+    litellm.service \
+    searxng.service \
+    openclaw-pod.service || true
+
+sudo -iu "$svc_user" bash -lc '
+  podman rm -f openclaw-gateway openclaw-browser openclaw-litellm openclaw-searxng 2>/dev/null || true
+  podman pod rm -f openclaw 2>/dev/null || true
+'
+```
+
+Full purge also removes secrets and token caches, so review the dedicated uninstall guide before running it.
+
 ## Layout
 
 ```text
@@ -325,7 +361,8 @@ systemctl --user restart openclaw-gateway.service
 │   ├── litellm-bootstrap.md
 │   ├── podman-49-fallback.md
 │   ├── searxng-bootstrap.md
-│   └── subscription-cli-auth.md
+│   ├── subscription-cli-auth.md
+│   └── uninstall.md
 ├── scripts/
 │   ├── bootstrap-os.sh
 │   ├── configure-discord.sh
@@ -359,3 +396,4 @@ systemctl --user restart openclaw-gateway.service
 - [Bootstrap SearXNG for OpenClaw](docs/searxng-bootstrap.md)
 - [Codex and Copilot CLI auth](docs/subscription-cli-auth.md)
 - [Bootstrap Discord for OpenClaw](docs/discord-bootstrap.md)
+- [Uninstall OpenClaw Podman quickstart](docs/uninstall.md)
