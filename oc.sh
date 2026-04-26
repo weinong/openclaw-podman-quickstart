@@ -85,6 +85,110 @@ created that user and enabled linger. Root execution is refused.
 EOF
 }
 
+usage_init() {
+  cat <<'EOF'
+Usage:
+  ./oc.sh init [--allow-current-user]
+
+Create OpenClaw runtime directories under the current user's home.
+EOF
+}
+
+usage_config() {
+  cat <<'EOF'
+Usage:
+  ./oc.sh config openclaw [--allow-current-user]
+  ./oc.sh config litellm [--allow-current-user]
+  ./oc.sh config searxng [--allow-current-user]
+  DISCORD_BOT_TOKEN='...' ./oc.sh config discord [options] [--allow-current-user]
+
+Targets:
+  openclaw                Create or patch ~/.openclaw/openclaw.json.
+  litellm                 Create LiteLLM env/config and sync gateway API key.
+  searxng                 Create SearXNG settings and patch OpenClaw search config.
+  discord                 Configure Discord allowlists and gateway token env.
+
+Discord options:
+  --dm-user ID            Allowed Discord DM user. Repeatable.
+  --guild ID              Allowed Discord guild/server. Repeatable.
+  --guild-user ID         Allowed guild user. Defaults to --dm-user values.
+  --channel-id ID         Allowed guild channel. Repeatable.
+  --require-mention bool  true or false. Default: false.
+EOF
+}
+
+usage_install() {
+  cat <<'EOF'
+Usage:
+  ./oc.sh install [fallback|quadlet] [--start-gateway] [--allow-current-user]
+
+One-shot user-owned install. Creates config, installs user systemd units,
+and starts core services. With no mode, automatically selects Quadlet when
+.pod support exists, otherwise uses the Podman 4.9-compatible fallback.
+
+Options:
+  fallback                Force classic user-systemd fallback units.
+  quadlet                 Force Quadlet units.
+  --start-gateway         Start openclaw-gateway.service after install.
+  --allow-current-user    Allow running as a non-openclaw, non-root user.
+EOF
+}
+
+usage_uninstall() {
+  cat <<'EOF'
+Usage:
+  ./oc.sh uninstall [--purge --yes] [--allow-current-user]
+
+Stop OpenClaw services and remove installed units/helpers. Generated config,
+credentials, browser data, and token caches are kept unless --purge --yes is set.
+
+Options:
+  --purge                 Also delete generated config, credentials, and data.
+  --yes, -y               Required confirmation for --purge.
+  --allow-current-user    Allow running as a non-openclaw, non-root user.
+EOF
+}
+
+usage_service() {
+  local action="${1:-start}"
+  cat <<EOF
+Usage:
+  ./oc.sh ${action} [browser|litellm|searxng|gateway|pod|core|all] [--allow-current-user]
+
+Run systemctl --user ${action} for one OpenClaw service group. Defaults to all.
+EOF
+}
+
+usage_logs() {
+  cat <<'EOF'
+Usage:
+  ./oc.sh logs [browser|litellm|searxng|gateway|pod|core|all] [--allow-current-user]
+
+Follow user journal logs for one OpenClaw service group. Defaults to gateway.
+EOF
+}
+
+usage_images() {
+  cat <<'EOF'
+Usage:
+  ./oc.sh images [--json]
+
+Print pinned container image repositories, tags, and sha256 manifest digests.
+
+Options:
+  --json                  Print image inventory as JSON.
+EOF
+}
+
+usage_doctor() {
+  cat <<'EOF'
+Usage:
+  ./oc.sh doctor [--allow-current-user]
+
+Print service, Podman, browser, LiteLLM, SearXNG, and OpenClaw browser checks.
+EOF
+}
+
 die() {
   echo "error: $*" >&2
   exit 1
@@ -709,6 +813,7 @@ main() {
       ;;
     init)
       shift
+      case "${1:-}" in -h|--help) usage_init; exit 0 ;; esac
       parse_common_flags "$@"
       assert_openclaw_user "${allow_current_user}"
       ensure_user_dirs
@@ -716,9 +821,10 @@ main() {
       ;;
     config)
       shift
+      case "${1:-}" in -h|--help|"") usage_config; exit 0 ;; esac
       local config_target="${1:-}"
-      [[ -n "${config_target}" ]] || die "config requires openclaw, litellm, searxng, or discord"
       shift
+      case "${1:-}" in -h|--help) usage_config; exit 0 ;; esac
       parse_common_flags "$@"
       assert_openclaw_user "${allow_current_user}"
       set -- "${remaining_args[@]}"
@@ -732,6 +838,7 @@ main() {
       ;;
     install)
       shift
+      case "${1:-}" in -h|--help) usage_install; exit 0 ;; esac
       local mode="auto"
       local start_gateway="false"
       local args=()
@@ -770,6 +877,7 @@ main() {
       ;;
     uninstall)
       shift
+      case "${1:-}" in -h|--help) usage_uninstall; exit 0 ;; esac
       local purge="false"
       local yes="false"
       local args=()
@@ -798,12 +906,14 @@ main() {
       case "${1:-}" in
         "") print_images text ;;
         --json) print_images json ;;
+        -h|--help) usage_images ;;
         *) die "unknown images option: $1" ;;
       esac
       ;;
     start|stop|restart|status)
       local action="${cmd}"
       shift
+      case "${1:-}" in -h|--help) usage_service "${action}"; exit 0 ;; esac
       parse_common_flags "$@"
       assert_openclaw_user "${allow_current_user}"
       set -- "${remaining_args[@]}"
@@ -816,6 +926,7 @@ main() {
       ;;
     logs)
       shift
+      case "${1:-}" in -h|--help) usage_logs; exit 0 ;; esac
       parse_common_flags "$@"
       assert_openclaw_user "${allow_current_user}"
       set -- "${remaining_args[@]}"
@@ -825,6 +936,7 @@ main() {
       ;;
     doctor)
       shift
+      case "${1:-}" in -h|--help) usage_doctor; exit 0 ;; esac
       parse_common_flags "$@"
       assert_openclaw_user "${allow_current_user}"
       doctor
