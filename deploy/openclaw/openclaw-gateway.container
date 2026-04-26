@@ -1,7 +1,7 @@
 [Unit]
 Description=OpenClaw gateway container
-After=openclaw-pod.service openclaw-browser.service litellm.service
-Requires=openclaw-pod.service openclaw-browser.service litellm.service
+After=openclaw-pod.service openclaw-browser.service litellm.service searxng.service
+Requires=openclaw-pod.service openclaw-browser.service litellm.service searxng.service
 
 [Container]
 Pod=openclaw.pod
