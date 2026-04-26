@@ -11,16 +11,14 @@ This guide configures OpenClaw's Discord channel with:
 
 The token is not stored in `openclaw.json`.
 
-## Discord prerequisites
+## Discord Prerequisites
 
 In the Discord Developer Portal:
 
 1. Create an application.
 2. Add a bot.
 3. Copy the bot token.
-4. Enable the required bot intents:
-   - Message Content Intent
-   - Server Members Intent, if you plan to use allowlists or name lookups
+4. Enable the required bot intents: Message Content Intent and, if using allowlists or name lookups, Server Members Intent.
 5. Invite the bot to your server with permission to read and send messages in the channels where you want to use it.
 
 Use Discord numeric IDs for bootstrap:
@@ -33,11 +31,11 @@ In Discord, enable Developer Mode, then right-click the user, server, or channel
 
 ## Configure Discord
 
-Run from the repo checkout as a sudo-capable user:
+Run from the repo checkout as the `openclaw` user:
 
 ```bash
 DISCORD_BOT_TOKEN='YOUR_BOT_TOKEN' \
-  sudo -E bash ./scripts/configure-discord.sh openclaw \
+  ./oc.sh config discord \
     --dm-user YOUR_DISCORD_USER_ID \
     --guild YOUR_DISCORD_GUILD_ID \
     --require-mention false
@@ -47,7 +45,7 @@ For multiple allowed DM users:
 
 ```bash
 DISCORD_BOT_TOKEN='YOUR_BOT_TOKEN' \
-  sudo -E bash ./scripts/configure-discord.sh openclaw \
+  ./oc.sh config discord \
     --dm-user USER_ID_1 \
     --dm-user USER_ID_2 \
     --guild YOUR_DISCORD_GUILD_ID \
@@ -58,7 +56,7 @@ For a different guild user allowlist than the DM allowlist:
 
 ```bash
 DISCORD_BOT_TOKEN='YOUR_BOT_TOKEN' \
-  sudo -E bash ./scripts/configure-discord.sh openclaw \
+  ./oc.sh config discord \
     --dm-user YOUR_DISCORD_USER_ID \
     --guild YOUR_DISCORD_GUILD_ID \
     --guild-user ALLOWED_GUILD_USER_ID \
@@ -69,47 +67,27 @@ To restrict the bot to one or more guild channels, add `--channel-id` values:
 
 ```bash
 DISCORD_BOT_TOKEN='YOUR_BOT_TOKEN' \
-  sudo -E bash ./scripts/configure-discord.sh openclaw \
+  ./oc.sh config discord \
     --dm-user YOUR_DISCORD_USER_ID \
     --guild YOUR_DISCORD_GUILD_ID \
     --channel-id YOUR_DISCORD_CHANNEL_ID \
     --require-mention false
 ```
 
-For multiple channels:
-
-```bash
-DISCORD_BOT_TOKEN='YOUR_BOT_TOKEN' \
-  sudo -E bash ./scripts/configure-discord.sh openclaw \
-    --dm-user YOUR_DISCORD_USER_ID \
-    --guild YOUR_DISCORD_GUILD_ID \
-    --channel-id CHANNEL_ID_1 \
-    --channel-id CHANNEL_ID_2 \
-    --require-mention false
-```
-
 If `--channel-id` is omitted, the script allowlists the guild without adding a channel restriction. If one or more `--channel-id` values are set, OpenClaw restricts that guild to those channels.
 
-## What the script writes
+## What `oc.sh` Writes
 
 Token location:
 
 ```text
-~openclaw/.config/openclaw-gateway/gateway.env
+~/.config/openclaw-gateway/gateway.env
 ```
-
-Example content:
-
-```bash
-DISCORD_BOT_TOKEN=...
-```
-
-The file is created with mode `0600` and owned by the service user.
 
 OpenClaw config location:
 
 ```text
-~openclaw/.openclaw/openclaw.json
+~/.openclaw/openclaw.json
 ```
 
 The script patches the Discord channel block into `openclaw.json`:
@@ -133,67 +111,36 @@ The script patches the Discord channel block into `openclaw.json`:
 }
 ```
 
-With channel restrictions, the guild entry includes a `channels` map:
-
-```json
-{
-  "channels": {
-    "discord": {
-      "guilds": {
-        "YOUR_DISCORD_GUILD_ID": {
-          "requireMention": false,
-          "users": ["YOUR_DISCORD_USER_ID"],
-          "channels": {
-            "YOUR_DISCORD_CHANNEL_ID": {
-              "allow": true,
-              "requireMention": false
-            }
-          }
-        }
-      }
-    }
-  }
-}
-```
+With channel restrictions, the guild entry includes a `channels` map.
 
 The script also deletes `channels.discord.token` if present, so the bot token is not stored in JSON.
 
-## Restart the gateway
+## Restart the Gateway
 
 If the gateway container is already running:
 
 ```bash
-sudo -iu openclaw
-systemctl --user restart openclaw-gateway.service
+./oc.sh restart gateway
 ```
 
 If the gateway has not been started yet:
 
 ```bash
-sudo -iu openclaw
-systemctl --user start openclaw-gateway.service
+./oc.sh start gateway
 ```
 
 Check logs:
 
 ```bash
-journalctl --user -u openclaw-gateway.service -f
+./oc.sh logs gateway
 ```
 
-## Validate config
-
-As the service user:
+## Validate Config
 
 ```bash
-sudo -iu openclaw
 jq '.channels.discord' ~/.openclaw/openclaw.json
-cat ~/.config/openclaw-gateway/gateway.env | sed 's/DISCORD_BOT_TOKEN=.*/DISCORD_BOT_TOKEN=<redacted>/'
-```
-
-Then run the general doctor:
-
-```bash
-bash ./openclaw-podman-quickstart/scripts/doctor-openclaw-podman.sh
+sed 's/DISCORD_BOT_TOKEN=.*/DISCORD_BOT_TOKEN=<redacted>/' ~/.config/openclaw-gateway/gateway.env
+./oc.sh doctor
 ```
 
 ## Notes

@@ -2,9 +2,9 @@
 
 This guide bootstraps a fresh Ubuntu host to run OpenClaw-related containers with rootless Podman and user-level systemd services.
 
-It focuses on reproducible bootstrap only. It does not cover runtime snapshots, VM snapshots, or backing up OpenClaw state.
+The VM admin only prepares the OS and creates the `openclaw` user. The OpenClaw bootstrap itself is run by the `openclaw` user with `./oc.sh`.
 
-## Target architecture
+## Target Architecture
 
 ```text
 Ubuntu host
@@ -13,216 +13,136 @@ Ubuntu host
         └── Podman pod: openclaw
             ├── openclaw-browser
             │   └── persistent Chromium CDP endpoint on :9222
+            ├── openclaw-litellm
+            ├── openclaw-searxng
             └── openclaw-gateway
-                └── OpenClaw gateway, optional containerized form
 ```
 
-The persistent browser is the important part. OpenClaw expects a long-lived CDP endpoint for operations like `tabs` and `snapshot`. Short-lived Browserless-style sessions can connect successfully but then disappear after the WebSocket session closes.
+The persistent browser is the important part. OpenClaw expects a long-lived CDP endpoint for operations like `tabs` and `snapshot`.
 
-## Phase 1: bootstrap the OS
+## Phase 1: Admin Prep
 
-Run as a sudo-capable user on the VM:
+Run as a sudo-capable VM admin user:
 
 ```bash
-sudo ./scripts/bootstrap-os.sh openclaw
+sudo apt-get update
+sudo apt-get install -y \
+  ca-certificates curl dbus-user-session fuse-overlayfs git gnupg \
+  iproute2 jq lsof openssl podman slirp4netns systemd-container uidmap
+
+sudo useradd --create-home --shell /bin/bash openclaw || true
+sudo loginctl enable-linger openclaw
 ```
 
-The script does the following:
+## Phase 2: One-Shot Install
 
-1. Installs required OS packages.
-2. Creates the `openclaw` user if missing.
-3. Ensures rootless Podman helper packages are present.
-4. Enables systemd linger for the service user.
-5. Creates initial config directories.
-
-Installed packages include:
-
-- `podman`
-- `uidmap`
-- `slirp4netns`
-- `fuse-overlayfs`
-- `dbus-user-session`
-- `systemd-container`
-- `jq`
-- `curl`
-- `git`
-- `ca-certificates`
-- `gnupg`
-- `openssl`
-- `lsof`
-- `iproute2`
-
-## Phase 2: install Quadlet units and config
-
-Run:
-
-```bash
-sudo ./scripts/install-openclaw-podman.sh openclaw
-```
-
-This copies these files into the service user's Quadlet directory:
-
-```text
-~openclaw/.config/containers/systemd/openclaw.pod
-~openclaw/.config/containers/systemd/openclaw-browser.container
-~openclaw/.config/containers/systemd/openclaw-gateway.container
-```
-
-It also creates a minimal OpenClaw config if one does not already exist:
-
-```text
-~openclaw/.openclaw/openclaw.json
-```
-
-The default browser profile points to:
-
-```text
-http://127.0.0.1:9222
-```
-
-## Phase 3: start services
-
-The install script starts:
-
-```text
-openclaw-pod.service
-openclaw-browser.service
-```
-
-The gateway unit is installed but may require OpenClaw-specific onboarding or environment values before it is useful. You can start it manually after adjusting the unit and config:
+Switch to the service user and run the repo entrypoint:
 
 ```bash
 sudo -iu openclaw
-systemctl --user start openclaw-gateway.service
+git clone https://github.com/weinong/openclaw-podman-quickstart.git
+cd openclaw-podman-quickstart
+
+./oc.sh install
 ```
 
-## Validate the browser CDP endpoint
+`./oc.sh install` creates config, installs user systemd units, and starts the core services. It automatically uses the Podman 4.9 fallback when Quadlet `.pod` support is unavailable.
 
-As the service user:
+Force a specific install mode if needed:
 
 ```bash
-sudo -iu openclaw
+./oc.sh install fallback
+./oc.sh install quadlet
+```
+
+## Config Management
+
+OpenClaw config can be refreshed independently:
+
+```bash
+./oc.sh config openclaw
+```
+
+Sidecar config can also be managed independently:
+
+```bash
+./oc.sh config litellm
+./oc.sh config searxng
+```
+
+## Service Operations
+
+Common commands:
+
+```bash
+./oc.sh status
+./oc.sh restart browser
+./oc.sh restart litellm
+./oc.sh restart searxng
+./oc.sh start gateway
+./oc.sh logs gateway
+```
+
+The gateway unit is installed but not started by default. Start it after OpenClaw onboarding/configuration is ready.
+
+## Uninstall
+
+Remove installed services and unit files while preserving generated config and data:
+
+```bash
+./oc.sh uninstall
+```
+
+Also remove generated config, credentials, browser data, and LiteLLM token caches:
+
+```bash
+./oc.sh uninstall --purge --yes
+```
+
+## Validate the Browser CDP Endpoint
+
+As `openclaw`:
+
+```bash
 curl -s http://127.0.0.1:9222/json/version | jq .
 curl -s http://127.0.0.1:9222/json/list | jq .
 ```
 
-Run the helper:
+Run the general doctor:
 
 ```bash
-./openclaw-podman-quickstart/scripts/doctor-openclaw-podman.sh
+./oc.sh doctor
 ```
 
-If the OpenClaw CLI is installed in the service user's `PATH`, the doctor script also runs:
+If the OpenClaw CLI is installed in the service user's `PATH`, the doctor also runs:
 
 ```bash
 openclaw browser --browser-profile default doctor
 ```
 
-## User systemd command pattern
+## Why Not Browserless?
 
-When running from outside the service user's login shell, use the user bus explicitly:
-
-```bash
-svc_user=openclaw
-uid="$(id -u "$svc_user")"
-
-sudo -u "$svc_user" \
-  XDG_RUNTIME_DIR="/run/user/${uid}" \
-  DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${uid}/bus" \
-  systemctl --user status openclaw-browser.service --no-pager
-```
-
-When logged in as the service user, normal user-systemd commands are enough:
-
-```bash
-systemctl --user status openclaw-browser.service --no-pager
-journalctl --user -u openclaw-browser.service -f
-```
-
-## Why not Browserless for this profile?
-
-Browserless is useful for on-demand browser automation jobs. However, in this setup OpenClaw needs a persistent CDP browser. Browserless session mode can create a browser for one WebSocket connection and close it when the client disconnects. That causes later `tabs` or `snapshot` operations to fail because the browser instance is already gone.
+Browserless is useful for on-demand browser automation jobs. This setup needs a persistent CDP browser. Browserless session mode can create a browser for one WebSocket connection and close it when the client disconnects.
 
 This quickstart uses `chromedp/headless-shell` as a long-lived Chromium process with a stable CDP endpoint.
 
-## Security model
+## Security Model
 
-The browser CDP port is powerful. This setup avoids publishing `9222` outside the pod in the containerized OpenClaw model. If you temporarily publish it to the host for debugging, bind only to loopback:
-
-```text
-127.0.0.1:9222:9222
-```
-
-Never expose CDP on `0.0.0.0` to an untrusted network.
-
-## Common operations
-
-Restart browser:
-
-```bash
-systemctl --user restart openclaw-browser.service
-```
-
-Logs:
-
-```bash
-journalctl --user -u openclaw-browser.service -f
-podman logs -f openclaw-browser
-```
-
-Show generated Quadlet service:
-
-```bash
-systemctl --user cat openclaw-browser.service
-```
-
-List containers:
-
-```bash
-podman ps -a
-```
+The browser CDP port is powerful. This setup binds it to host loopback through the Podman pod. Never expose CDP on `0.0.0.0` to an untrusted network.
 
 ## Troubleshooting
 
-### `Failed to enable unit: transient or generated`
-
-Quadlet-generated `.service` files are generated under the user systemd generator path. Start them directly instead of enabling them:
+If `curl http://127.0.0.1:9222/json/version` fails, check:
 
 ```bash
-systemctl --user daemon-reload
-systemctl --user start openclaw-browser.service
-```
-
-The `[Install]` section in the `.container` or `.pod` file is what wires it into the user target.
-
-### `curl http://127.0.0.1:9222/json/version` fails
-
-Check:
-
-```bash
-systemctl --user status openclaw-browser.service --no-pager
-journalctl --user -u openclaw-browser.service -n 100 --no-pager
+./oc.sh status browser
+./oc.sh logs browser
 podman ps -a
 podman logs --tail=100 openclaw-browser
 ```
 
-### OpenClaw cannot see browser tabs
+If OpenClaw cannot see browser tabs, refresh the reusable OpenClaw config:
 
-Make sure the configured browser profile uses the persistent CDP endpoint:
-
-```json
-{
-  "browser": {
-    "enabled": true,
-    "defaultProfile": "default",
-    "profiles": {
-      "default": {
-        "driver": "cdp",
-        "cdpUrl": "http://127.0.0.1:9222"
-      }
-    }
-  }
-}
+```bash
+./oc.sh config openclaw
 ```
-
-If OpenClaw itself runs inside the same Podman pod as the browser, `127.0.0.1:9222` is the shared pod network namespace.

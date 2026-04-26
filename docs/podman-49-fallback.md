@@ -1,41 +1,27 @@
-# Podman 4.9 systemd fallback
+# Podman 4.9 Systemd Fallback
 
 Ubuntu 24.04 ships Podman 4.9.3. That package includes Quadlet, but its Quadlet support does not include `.pod` units.
 
-You can confirm this with:
+`./oc.sh install` detects this and installs the classic user-systemd fallback automatically.
+
+## Install Fallback Units
+
+Run from the repo checkout as the `openclaw` user:
 
 ```bash
-man podman-systemd.unit | head -40
-```
-
-If the synopsis lists `.container`, `.volume`, `.network`, `.kube`, and `.image`, but not `.pod`, then `deploy/openclaw/openclaw.pod` will be ignored by the generator and `openclaw-pod.service` will not be created.
-
-This repo includes a classic user-systemd fallback under:
-
-```text
-deploy/openclaw-systemd/
-```
-
-It creates the pod with a normal systemd unit and runs the containers with helper scripts.
-
-## Install fallback units
-
-From the repo checkout:
-
-```bash
-sudo ./scripts/install-openclaw-systemd-fallback.sh openclaw
+./oc.sh install fallback
 ```
 
 The fallback installer copies services to:
 
 ```text
-~openclaw/.config/systemd/user/
+~/.config/systemd/user/
 ```
 
 and helper scripts to:
 
 ```text
-~openclaw/.local/bin/
+~/.local/bin/
 ```
 
 It starts these services:
@@ -49,52 +35,32 @@ searxng.service
 
 The gateway service is installed but not started automatically.
 
-## Check status
+## Check Status
 
 ```bash
-svc_user=openclaw
-uid="$(id -u "$svc_user")"
-
-sudo -u "$svc_user" env \
-  XDG_RUNTIME_DIR="/run/user/${uid}" \
-  DBUS_SESSION_BUS_ADDRESS="unix:path=/run/user/${uid}/bus" \
-  systemctl --user status \
-    openclaw-pod.service \
-    openclaw-browser.service \
-    litellm.service \
-    searxng.service \
-    --no-pager
-```
-
-As the service user:
-
-```bash
-sudo -iu openclaw
+./oc.sh status core
 podman pod ps
 podman ps -a
 ```
 
-## Start gateway
+## Start Gateway
 
 After OpenClaw onboarding/configuration is ready:
 
 ```bash
-sudo -iu openclaw
-systemctl --user start openclaw-gateway.service
-journalctl --user -u openclaw-gateway.service -f
+./oc.sh start gateway
+./oc.sh logs gateway
 ```
 
-## Validate endpoints
+## Validate Endpoints
 
 ```bash
-sudo -iu openclaw
-
 curl -fsS http://127.0.0.1:9222/json/version | jq .
 curl -fsS http://127.0.0.1:4000/health/liveliness | jq .
 curl -fsS http://127.0.0.1:8080/ >/dev/null && echo "SearXNG OK"
 ```
 
-## Why this fallback exists
+## Why This Fallback Exists
 
 The Quadlet path is cleaner on newer Podman releases that support `.pod` units. Ubuntu 24.04's stock Podman 4.9.3 has Quadlet support, but does not support `.pod` files, so it cannot generate `openclaw-pod.service` from `openclaw.pod`.
 

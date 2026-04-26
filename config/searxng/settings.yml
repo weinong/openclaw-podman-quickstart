@@ -1,6 +1,6 @@
 # Bootstrap template for SearXNG.
-# scripts/install-openclaw-podman.sh copies this file to ~/.config/searxng/settings.yml
-# and replaces CHANGE_ME_SEARXNG_SECRET with a generated secret key.
+# ./oc.sh config searxng writes ~/.config/searxng/settings.yml
+# with a generated secret key.
 
 use_default_settings: true
 
