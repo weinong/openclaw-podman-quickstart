@@ -1,6 +1,6 @@
 # OpenClaw Podman Quickstart
 
-Bootstrap a headless Ubuntu host to run OpenClaw with rootless Podman, user-level systemd services, a persistent Chromium CDP browser container, a LiteLLM sidecar, and optional Discord gateway configuration.
+Bootstrap a headless Ubuntu host to run OpenClaw with rootless Podman, user-level systemd services, a persistent Chromium CDP browser container, a LiteLLM sidecar, a SearXNG search sidecar, and optional Discord gateway configuration.
 
 This repo focuses on **bootstrap**, not snapshot/backup. It is meant to help you reproduce the setup quickly on a fresh VM.
 
@@ -14,9 +14,11 @@ This repo focuses on **bootstrap**, not snapshot/backup. It is meant to help you
   - an OpenClaw pod
   - a persistent Chromium CDP browser container
   - a LiteLLM proxy sidecar
+  - a SearXNG search sidecar
   - an optional OpenClaw gateway container skeleton
 - A minimal OpenClaw browser profile config pointing to the persistent CDP endpoint.
 - A LiteLLM provider config for OpenClaw, with the default OpenClaw model set to `litellm/github_copilot/gpt-4` and ChatGPT subscription models also available.
+- A SearXNG `web_search` provider config for OpenClaw, with SearXNG bound to `127.0.0.1:8080`.
 - Optional Discord bot bootstrap with token stored in a user-only env file and access policy stored in OpenClaw config.
 - Optional Codex/Copilot CLI auth guidance for tool-style usage.
 
@@ -27,6 +29,7 @@ This repo focuses on **bootstrap**, not snapshot/backup. It is meant to help you
 - You want a persistent browser endpoint for OpenClaw, not short-lived Browserless sessions.
 - Chrome CDP should stay local to the pod/host and should not be exposed publicly.
 - LiteLLM should run locally as the OpenClaw model gateway on `127.0.0.1:4000`.
+- SearXNG should run locally as the OpenClaw web search provider on `127.0.0.1:8080`.
 - LiteLLM should manage GitHub Copilot and ChatGPT OAuth device-code login for subscription-backed models.
 - Discord access should be explicit: allowed DM users, allowed server/guild IDs, and private-server mention behavior.
 
@@ -107,12 +110,13 @@ sudo ./scripts/bootstrap-os.sh openclaw
 sudo ./scripts/install-openclaw-podman.sh openclaw
 ```
 
-The installer copies these Quadlet files into `~openclaw/.config/containers/systemd/` and starts the pod, browser, and LiteLLM services when their unit files are present:
+The installer copies these Quadlet files into `~openclaw/.config/containers/systemd/` and starts the pod, browser, LiteLLM, and SearXNG services when their unit files are present:
 
 ```text
 deploy/openclaw/openclaw.pod
 deploy/openclaw/openclaw-browser.container
 deploy/openclaw/litellm.container
+deploy/openclaw/searxng.container
 deploy/openclaw/openclaw-gateway.container
 ```
 
@@ -153,7 +157,14 @@ curl -s http://127.0.0.1:4000/v1/responses \
   }' | jq .
 ```
 
-Complete the device-code login in a browser. Then run the doctor:
+Verify SearXNG search:
+
+```bash
+curl -fsS http://127.0.0.1:8080/ >/dev/null && echo "SearXNG OK"
+curl -fsS 'http://127.0.0.1:8080/search?q=openclaw&format=json' | jq '.query, (.results | length)'
+```
+
+Complete any device-code login in a browser. Then run the doctor:
 
 ```bash
 ./openclaw-podman-quickstart/scripts/doctor-openclaw-podman.sh
@@ -271,6 +282,69 @@ The default LiteLLM config uses GitHub Copilot and ChatGPT OAuth device-code log
 
 See [docs/litellm-bootstrap.md](docs/litellm-bootstrap.md) for details.
 
+## SearXNG search sidecar
+
+The default setup runs SearXNG in the same Podman pod as OpenClaw:
+
+```text
+OpenClaw gateway -> http://127.0.0.1:8080 -> SearXNG -> upstream search engines
+```
+
+The installer creates:
+
+```text
+~openclaw/.config/containers/systemd/searxng.container
+~openclaw/.config/searxng/settings.yml
+~openclaw/.config/openclaw-gateway/gateway.env
+```
+
+The generated `settings.yml` enables the SearXNG JSON API:
+
+```yaml
+search:
+  formats:
+    - html
+    - json
+```
+
+OpenClaw is preconfigured to use SearXNG:
+
+```json
+{
+  "tools": {
+    "web": {
+      "search": {
+        "provider": "searxng"
+      }
+    }
+  },
+  "plugins": {
+    "entries": {
+      "searxng": {
+        "config": {
+          "webSearch": {
+            "baseUrl": "http://127.0.0.1:8080/",
+            "categories": "general,news",
+            "language": "en"
+          }
+        }
+      }
+    }
+  }
+}
+```
+
+Restart and validate SearXNG:
+
+```bash
+sudo -iu openclaw
+systemctl --user restart searxng.service
+curl -fsS http://127.0.0.1:8080/ >/dev/null && echo OK
+curl -fsS 'http://127.0.0.1:8080/search?q=openclaw&format=json' | jq '.query, (.results | length)'
+```
+
+See [docs/searxng-bootstrap.md](docs/searxng-bootstrap.md) for details.
+
 ## Optional: Codex and Copilot CLI auth
 
 Codex and Copilot CLI login is useful when OpenClaw invokes those CLIs as tools. Copilot and ChatGPT model routing through LiteLLM is handled separately by LiteLLM providers.
@@ -342,20 +416,25 @@ See [docs/discord-bootstrap.md](docs/discord-bootstrap.md) for the full Discord 
 ├── config/litellm/
 │   ├── config.yaml
 │   └── litellm.env.example
+├── config/searxng/
+│   └── settings.yml
 ├── deploy/openclaw/
 │   ├── litellm.container
 │   ├── openclaw.pod
 │   ├── openclaw-browser.container
-│   └── openclaw-gateway.container
+│   ├── openclaw-gateway.container
+│   └── searxng.container
 ├── docs/
 │   ├── bootstrap.md
 │   ├── discord-bootstrap.md
 │   ├── litellm-bootstrap.md
+│   ├── searxng-bootstrap.md
 │   └── subscription-cli-auth.md
 ├── scripts/
 │   ├── bootstrap-os.sh
 │   ├── configure-discord.sh
 │   ├── configure-litellm.sh
+│   ├── configure-searxng.sh
 │   ├── install-openclaw-podman.sh
 │   └── doctor-openclaw-podman.sh
 └── README.md
@@ -377,18 +456,21 @@ When OpenClaw and the browser run in the same Podman pod, that address resolves 
 
 - Do not expose Chrome CDP to the public internet.
 - Do not expose LiteLLM port `4000` beyond host loopback unless you have explicit auth, TLS, and network policy.
+- Do not expose SearXNG port `8080` beyond host loopback unless you have reviewed production hardening and abuse controls.
 - Do not commit real `openclaw.json` files if they contain auth profiles, tokens, API keys, or local machine secrets.
-- Do not commit `~openclaw/.config/openclaw-gateway/gateway.env`; it contains runtime secrets such as `DISCORD_BOT_TOKEN` and `LITELLM_API_KEY`.
+- Do not commit `~openclaw/.config/openclaw-gateway/gateway.env`; it contains runtime secrets such as `DISCORD_BOT_TOKEN`, `LITELLM_API_KEY`, and `SEARXNG_BASE_URL`.
 - Do not commit `~openclaw/.config/litellm/litellm.env`; it contains the LiteLLM master key.
+- Do not commit `~openclaw/.config/searxng/settings.yml`; it contains the generated SearXNG `server.secret_key`.
 - Do not commit `~openclaw/.local/share/litellm/github_copilot`; it contains OAuth-derived Copilot credentials.
 - Do not commit `~openclaw/.local/share/litellm/chatgpt`; it contains OAuth-derived ChatGPT credentials.
 - Treat Codex/Copilot CLI credential directories as secrets; do not bake them into container images.
 - This repo intentionally avoids snapshotting runtime state.
-- Treat the OpenClaw gateway, LiteLLM, and browser CDP endpoint as sensitive control surfaces.
+- Treat the OpenClaw gateway, LiteLLM, SearXNG, and browser CDP endpoint as sensitive control surfaces.
 
 ## Detailed guides
 
 - [Bootstrap OpenClaw with rootless Podman](docs/bootstrap.md)
 - [Bootstrap LiteLLM sidecar for OpenClaw](docs/litellm-bootstrap.md)
+- [Bootstrap SearXNG for OpenClaw](docs/searxng-bootstrap.md)
 - [Codex and Copilot CLI auth](docs/subscription-cli-auth.md)
 - [Bootstrap Discord for OpenClaw](docs/discord-bootstrap.md)
