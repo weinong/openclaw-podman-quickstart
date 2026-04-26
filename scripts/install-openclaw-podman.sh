@@ -18,6 +18,8 @@ fi
 install -d -o "${svc_user}" -g "${svc_user}" "${home_dir}/.config/containers/systemd"
 install -d -o "${svc_user}" -g "${svc_user}" -m 0700 "${home_dir}/.config/openclaw-gateway"
 install -d -o "${svc_user}" -g "${svc_user}" -m 0700 "${home_dir}/.config/litellm"
+install -d -o "${svc_user}" -g "${svc_user}" -m 0700 "${home_dir}/.local/share/litellm"
+install -d -o "${svc_user}" -g "${svc_user}" -m 0700 "${home_dir}/.local/share/litellm/github_copilot"
 install -d -o "${svc_user}" -g "${svc_user}" "${home_dir}/.local/share/openclaw-browser"
 install -d -o "${svc_user}" -g "${svc_user}" "${home_dir}/.openclaw/workspace"
 
@@ -29,9 +31,9 @@ if [[ ! -f "${home_dir}/.config/litellm/litellm.env" ]]; then
   litellm_master_key="sk-litellm-$(openssl rand -hex 24)"
   cat > "${home_dir}/.config/litellm/litellm.env" <<EOF
 LITELLM_MASTER_KEY=${litellm_master_key}
-# Required by the default config/litellm/config.yaml.
-# Replace this with a real OpenAI API key, or change config.yaml to use another provider.
-OPENAI_API_KEY=
+# GitHub Copilot provider uses OAuth device flow.
+# No upstream API key is required for the default config.yaml.
+# The first model request will print a device login URL/code in LiteLLM logs.
 EOF
   chown "${svc_user}:${svc_user}" "${home_dir}/.config/litellm/litellm.env"
   chmod 0600 "${home_dir}/.config/litellm/litellm.env"
@@ -88,20 +90,12 @@ if [[ ! -f "${home_dir}/.openclaw/openclaw.json" ]]; then
         "api": "openai-completions",
         "models": [
           {
-            "id": "openai/gpt-4.1",
-            "name": "GPT-4.1 via LiteLLM",
+            "id": "github_copilot/gpt-4",
+            "name": "GitHub Copilot GPT-4 via LiteLLM",
             "reasoning": false,
-            "input": ["text", "image"],
-            "contextWindow": 1047576,
-            "maxTokens": 32768
-          },
-          {
-            "id": "openai/gpt-4.1-mini",
-            "name": "GPT-4.1 mini via LiteLLM",
-            "reasoning": false,
-            "input": ["text", "image"],
-            "contextWindow": 1047576,
-            "maxTokens": 32768
+            "input": ["text"],
+            "contextWindow": 128000,
+            "maxTokens": 8192
           }
         ]
       }
@@ -110,7 +104,7 @@ if [[ ! -f "${home_dir}/.openclaw/openclaw.json" ]]; then
   "agents": {
     "defaults": {
       "model": {
-        "primary": "litellm/openai/gpt-4.1-mini"
+        "primary": "litellm/github_copilot/gpt-4"
       }
     }
   }
@@ -132,24 +126,16 @@ else
       api: "openai-completions",
       models: [
         {
-          id: "openai/gpt-4.1",
-          name: "GPT-4.1 via LiteLLM",
+          id: "github_copilot/gpt-4",
+          name: "GitHub Copilot GPT-4 via LiteLLM",
           reasoning: false,
-          input: ["text", "image"],
-          contextWindow: 1047576,
-          maxTokens: 32768
-        },
-        {
-          id: "openai/gpt-4.1-mini",
-          name: "GPT-4.1 mini via LiteLLM",
-          reasoning: false,
-          input: ["text", "image"],
-          contextWindow: 1047576,
-          maxTokens: 32768
+          input: ["text"],
+          contextWindow: 128000,
+          maxTokens: 8192
         }
       ]
     } |
-    .agents.defaults.model.primary = "litellm/openai/gpt-4.1-mini"
+    .agents.defaults.model.primary = "litellm/github_copilot/gpt-4"
   ' "${home_dir}/.openclaw/openclaw.json" > "${tmp_config}"
   install -o "${svc_user}" -g "${svc_user}" -m 0600 "${tmp_config}" "${home_dir}/.openclaw/openclaw.json"
   rm -f "${tmp_config}"
@@ -191,5 +177,6 @@ fi
 
 echo "Install complete for user: ${svc_user}"
 echo "LiteLLM env: ${home_dir}/.config/litellm/litellm.env"
-echo "Set OPENAI_API_KEY in that file or replace ${home_dir}/.config/litellm/config.yaml for another provider."
+echo "LiteLLM Copilot token cache: ${home_dir}/.local/share/litellm/github_copilot"
+echo "The first LiteLLM request to github_copilot/gpt-4 will print a device login URL/code in LiteLLM logs."
 echo "Gateway unit is installed as a skeleton. Start it after OpenClaw onboarding/configuration is ready."
