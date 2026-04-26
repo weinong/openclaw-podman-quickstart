@@ -70,6 +70,11 @@ Services:
 Discord config options:
   --dm-user ID            Allowed Discord DM user. Repeatable.
   --guild ID              Allowed Discord guild/server. Repeatable.
+  --account ID            Discord account/bot id. Default: default.
+  --token-env ENV_VAR     Env var used by SecretRef. Default: DISCORD_BOT_TOKEN
+                           for default account, DISCORD_BOT_TOKEN_<ACCOUNT> otherwise.
+  --agent ID              Bind this Discord account to an agent id.
+  --workspace PATH        Workspace for --agent. Default: ~/.openclaw/workspace-<agent>.
   --guild-user ID         Allowed guild user. Defaults to --dm-user values.
   --channel-id ID         Allowed guild channel. Repeatable.
   --require-mention bool  true or false. Default: false.
@@ -460,6 +465,72 @@ config_set_json() {
   config_set_path "$1" "$2" true "${3:-false}"
 }
 
+env_suffix() {
+  local value="$1"
+  local suffix
+  suffix="$(printf '%s' "${value}" | tr '[:lower:]' '[:upper:]' | tr -c 'A-Z0-9_' '_')"
+  suffix="${suffix##_}"
+  suffix="${suffix%%_}"
+  [[ -n "${suffix}" ]] || die "could not derive env suffix from: ${value}"
+  printf '%s\n' "${suffix}"
+}
+
+env_value_by_name() {
+  local name="$1"
+  printf '%s' "${!name:-}"
+}
+
+config_upsert_agent() {
+  need_cmd jq
+  local agent_id="$1"
+  local workspace="$2"
+  ensure_openclaw_config_file
+
+  local tmp
+  tmp="$(mktemp)"
+  jq --arg id "${agent_id}" --arg workspace "${workspace}" '
+    .agents.list = (
+      (.agents.list // []) as $list |
+      if any($list[]?; .id == $id) then
+        $list | map(if .id == $id then (. + {workspace: $workspace}) else . end)
+      else
+        $list + [{id: $id, workspace: $workspace}]
+      end
+    )
+  ' "${openclaw_config}" > "${tmp}"
+  install -m 0600 "${tmp}" "${openclaw_config}"
+  rm -f "${tmp}"
+}
+
+config_upsert_discord_binding() {
+  need_cmd jq
+  local agent_id="$1"
+  local account_id="$2"
+  ensure_openclaw_config_file
+
+  local tmp
+  tmp="$(mktemp)"
+  jq --arg agentId "${agent_id}" --arg accountId "${account_id}" '
+    .bindings = (
+      (.bindings // []) as $bindings |
+      ($bindings | map(select(.match.channel == "discord" and .match.accountId == $accountId))) as $matches |
+      if ($matches | length) > 0 then
+        $bindings | map(
+          if .match.channel == "discord" and .match.accountId == $accountId then
+            (. + {agentId: $agentId, match: ((.match // {}) + {channel: "discord", accountId: $accountId})})
+          else
+            .
+          end
+        )
+      else
+        $bindings + [{agentId: $agentId, match: {channel: "discord", accountId: $accountId}}]
+      end
+    )
+  ' "${openclaw_config}" > "${tmp}"
+  install -m 0600 "${tmp}" "${openclaw_config}"
+  rm -f "${tmp}"
+}
+
 config_openclaw() {
   need_cmd jq
   config_set_json "browser.enabled" "true"
@@ -595,6 +666,10 @@ config_discord() {
   ensure_openclaw_config_file
 
   local require_mention="false"
+  local account_id="default"
+  local token_env=""
+  local agent_id=""
+  local workspace=""
   local dm_users=()
   local guild_users=()
   local guild_ids=()
@@ -605,6 +680,26 @@ config_discord() {
       --dm-user)
         [[ $# -ge 2 ]] || die "--dm-user requires a value"
         dm_users+=("$2")
+        shift 2
+        ;;
+      --account)
+        [[ $# -ge 2 ]] || die "--account requires a value"
+        account_id="$2"
+        shift 2
+        ;;
+      --token-env)
+        [[ $# -ge 2 ]] || die "--token-env requires a value"
+        token_env="$2"
+        shift 2
+        ;;
+      --agent)
+        [[ $# -ge 2 ]] || die "--agent requires a value"
+        agent_id="$2"
+        shift 2
+        ;;
+      --workspace)
+        [[ $# -ge 2 ]] || die "--workspace requires a value"
+        workspace="$2"
         shift 2
         ;;
       --guild-user)
@@ -637,7 +732,7 @@ config_discord() {
     esac
   done
 
-  [[ -n "${DISCORD_BOT_TOKEN:-}" ]] || die "DISCORD_BOT_TOKEN is required in the environment"
+  [[ -n "${account_id}" ]] || die "--account cannot be empty"
   [[ "${#dm_users[@]}" -gt 0 ]] || die "at least one --dm-user is required"
   [[ "${#guild_ids[@]}" -gt 0 ]] || die "at least one --guild is required"
   case "${require_mention}" in
@@ -645,7 +740,22 @@ config_discord() {
     *) die "--require-mention must be true or false" ;;
   esac
 
-  replace_env_value "${gateway_env}" "DISCORD_BOT_TOKEN" "${DISCORD_BOT_TOKEN}"
+  if [[ -z "${token_env}" ]]; then
+    if [[ "${account_id}" == "default" ]]; then
+      token_env="DISCORD_BOT_TOKEN"
+    else
+      token_env="DISCORD_BOT_TOKEN_$(env_suffix "${account_id}")"
+    fi
+  fi
+
+  local token_value
+  token_value="$(env_value_by_name "${token_env}")"
+  if [[ -z "${token_value}" && -n "${DISCORD_BOT_TOKEN:-}" ]]; then
+    token_value="${DISCORD_BOT_TOKEN}"
+  fi
+  [[ -n "${token_value}" ]] || die "${token_env} is required in the environment"
+
+  replace_env_value "${gateway_env}" "${token_env}" "${token_value}"
 
   if [[ "${#guild_users[@]}" -eq 0 ]]; then
     guild_users=("${dm_users[@]}")
@@ -657,23 +767,35 @@ config_discord() {
 
   config_set_json "channels.discord.enabled" "true"
   config_set_json "secrets.providers.default" '{"source":"env"}'
-  config_set_json "channels.discord.token" '{"source":"env","provider":"default","id":"DISCORD_BOT_TOKEN"}'
-  config_set_path "channels.discord.dmPolicy" "allowlist"
-  config_set_json "channels.discord.allowFrom" "${dm_json}"
-  config_set_path "channels.discord.groupPolicy" "allowlist"
-  config_set_json "channels.discord.guilds" "{}" true
+  config_set_json "channels.discord.accounts.${account_id}.token" "{\"source\":\"env\",\"provider\":\"default\",\"id\":\"${token_env}\"}"
+  config_set_path "channels.discord.accounts.${account_id}.dmPolicy" "allowlist"
+  config_set_json "channels.discord.accounts.${account_id}.allowFrom" "${dm_json}"
+  config_set_path "channels.discord.accounts.${account_id}.groupPolicy" "allowlist"
+  config_set_json "channels.discord.accounts.${account_id}.guilds" "{}" true
+  if [[ "${account_id}" == "default" ]]; then
+    config_set_path "channels.discord.defaultAccount" "default"
+  fi
 
   for guild_id in "${guild_ids[@]}"; do
-    config_set_json "channels.discord.guilds.${guild_id}.requireMention" "${require_mention}"
-    config_set_json "channels.discord.guilds.${guild_id}.users" "${guild_users_json}"
+    config_set_json "channels.discord.accounts.${account_id}.guilds.${guild_id}.requireMention" "${require_mention}"
+    config_set_json "channels.discord.accounts.${account_id}.guilds.${guild_id}.users" "${guild_users_json}"
     for channel_id in "${channel_ids[@]}"; do
-      config_set_json "channels.discord.guilds.${guild_id}.channels.${channel_id}.allow" "true"
-      config_set_json "channels.discord.guilds.${guild_id}.channels.${channel_id}.requireMention" "${require_mention}"
+      config_set_json "channels.discord.accounts.${account_id}.guilds.${guild_id}.channels.${channel_id}.allow" "true"
+      config_set_json "channels.discord.accounts.${account_id}.guilds.${guild_id}.channels.${channel_id}.requireMention" "${require_mention}"
     done
   done
 
+  if [[ -n "${agent_id}" ]]; then
+    if [[ -z "${workspace}" ]]; then
+      workspace="~/.openclaw/workspace-${agent_id}"
+    fi
+    config_upsert_agent "${agent_id}" "${workspace}"
+    config_upsert_discord_binding "${agent_id}" "${account_id}"
+  fi
+
   echo "Discord config updated: ${openclaw_config}"
-  echo "Discord token stored in: ${gateway_env}"
+  echo "Discord account: ${account_id}"
+  echo "Discord token env ${token_env} stored in: ${gateway_env}"
 }
 
 ensure_user_systemd_env() {

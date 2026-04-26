@@ -21,6 +21,8 @@ In the Discord Developer Portal:
 4. Enable the required bot intents: Message Content Intent and, if using allowlists or name lookups, Server Members Intent.
 5. Invite the bot to your server with permission to read and send messages in the channels where you want to use it.
 
+Upstream OpenClaw Discord setup reference: https://docs.openclaw.ai/channels/discord
+
 Use Discord numeric IDs for bootstrap:
 
 - your Discord user ID
@@ -76,6 +78,24 @@ DISCORD_BOT_TOKEN='YOUR_BOT_TOKEN' \
 
 If `--channel-id` is omitted, the script allowlists the guild without adding a channel restriction. If one or more `--channel-id` values are set, OpenClaw restricts that guild to those channels.
 
+## Multiple Discord Bots
+
+OpenClaw supports multiple Discord bot accounts in one gateway. Configure each bot with a distinct `--account` and token env var. Optionally bind that account to an isolated agent with `--agent`:
+
+```bash
+DISCORD_BOT_TOKEN_CODING='YOUR_CODING_BOT_TOKEN' \
+  ./oc.sh config discord \
+    --account coding \
+    --token-env DISCORD_BOT_TOKEN_CODING \
+    --agent coding \
+    --dm-user YOUR_DISCORD_USER_ID \
+    --guild YOUR_DISCORD_GUILD_ID \
+    --channel-id YOUR_DISCORD_CHANNEL_ID \
+    --require-mention false
+```
+
+This writes account-scoped Discord config under `channels.discord.accounts.coding` and adds a binding from Discord account `coding` to agent `coding`.
+
 ## What `oc.sh` Writes
 
 Token location:
@@ -97,18 +117,23 @@ The script patches the Discord channel block into `openclaw.json`:
   "channels": {
     "discord": {
       "enabled": true,
-      "token": {
-        "source": "env",
-        "provider": "default",
-        "id": "DISCORD_BOT_TOKEN"
-      },
-      "dmPolicy": "allowlist",
-      "allowFrom": ["YOUR_DISCORD_USER_ID"],
-      "groupPolicy": "allowlist",
-      "guilds": {
-        "YOUR_DISCORD_GUILD_ID": {
-          "requireMention": false,
-          "users": ["YOUR_DISCORD_USER_ID"]
+      "defaultAccount": "default",
+      "accounts": {
+        "default": {
+          "token": {
+            "source": "env",
+            "provider": "default",
+            "id": "DISCORD_BOT_TOKEN"
+          },
+          "dmPolicy": "allowlist",
+          "allowFrom": ["YOUR_DISCORD_USER_ID"],
+          "groupPolicy": "allowlist",
+          "guilds": {
+            "YOUR_DISCORD_GUILD_ID": {
+              "requireMention": false,
+              "users": ["YOUR_DISCORD_USER_ID"]
+            }
+          }
         }
       }
     }

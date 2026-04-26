@@ -232,7 +232,7 @@ openclaw browser --browser-profile default doctor
 
 ## Discord Bootstrap
 
-Create a Discord application and bot in the Discord Developer Portal, copy the bot token, enable required intents, and invite the bot to your server.
+Create a Discord application and bot in the Discord Developer Portal, copy the bot token, enable required intents, and invite the bot to your server. The upstream setup guide is: https://docs.openclaw.ai/channels/discord
 
 Then run as `openclaw` from the repo checkout:
 
@@ -251,6 +251,20 @@ Restart the gateway after changing Discord settings:
 ```
 
 The raw bot token is stored in `~/.config/openclaw-gateway/gateway.env`. `~/.openclaw/openclaw.json` stores a SecretRef to `DISCORD_BOT_TOKEN` plus the Discord access policy.
+
+For multiple Discord bots in one gateway, configure each bot as a separate Discord account and optionally bind it to a separate agent:
+
+```bash
+DISCORD_BOT_TOKEN_CODING='YOUR_CODING_BOT_TOKEN' \
+  ./oc.sh config discord \
+    --account coding \
+    --token-env DISCORD_BOT_TOKEN_CODING \
+    --agent coding \
+    --dm-user YOUR_DISCORD_USER_ID \
+    --guild YOUR_DISCORD_GUILD_ID \
+    --channel-id YOUR_DISCORD_CHANNEL_ID \
+    --require-mention false
+```
 
 ## `oc.sh` Commands
 
