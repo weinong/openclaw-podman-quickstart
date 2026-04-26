@@ -87,6 +87,8 @@ cd openclaw-podman-quickstart
 
 - Creates directories under `~/.config`, `~/.local/share`, and `~/.openclaw`.
 - Creates or patches `~/.openclaw/openclaw.json`.
+- Generates `OPENCLAW_GATEWAY_TOKEN` in `~/.config/openclaw-gateway/gateway.env` and stores a SecretRef in `openclaw.json`.
+- Configures local Gateway mode, token auth, Control UI origins, coding tool profile plus browser access, per-channel-peer DM sessions, and the browser plugin.
 - Configures LiteLLM and writes `~/.config/litellm/litellm.env`.
 - Configures SearXNG and installs `~/.config/searxng/settings.yml` from the bundled template with a generated secret.
 - Installs user systemd units.
@@ -98,6 +100,13 @@ Start the gateway after OpenClaw onboarding/configuration is ready:
 ```bash
 ./oc.sh start gateway
 ./oc.sh logs gateway
+```
+
+Set `OPENCLAW_CONTROL_UI_ORIGIN` before `./oc.sh config openclaw` or `./oc.sh install` to allow a tailnet Control UI origin. Both full origins and hostnames are accepted:
+
+```bash
+OPENCLAW_CONTROL_UI_ORIGIN=https://ubuntu-ts-01.example.ts.net ./oc.sh config openclaw
+OPENCLAW_CONTROL_UI_ORIGIN=ubuntu-ts-01.example.ts.net ./oc.sh config openclaw
 ```
 
 ## Ubuntu 24.04 Fallback
@@ -270,7 +279,7 @@ Restart the gateway after changing Discord settings:
 ./oc.sh restart gateway
 ```
 
-The raw bot token is stored in `~/.config/openclaw-gateway/gateway.env`. `~/.openclaw/openclaw.json` stores a SecretRef to `DISCORD_BOT_TOKEN` plus the Discord access policy.
+The raw bot token is stored in `~/.config/openclaw-gateway/gateway.env`. `~/.openclaw/openclaw.json` stores a SecretRef to `DISCORD_BOT_TOKEN` plus the Discord access policy. Discord thread bindings are enabled when Discord config is applied.
 
 Guild messages require a bot mention by default. Add `--require-mention false` without `--channel-id` to disable mention gating for the whole guild, or with `--channel-id` to disable it only for the listed channels.
 
@@ -396,7 +405,7 @@ Also remove generated config, credentials, browser data, and LiteLLM token cache
 - Do not expose LiteLLM port `4000` beyond host loopback unless you have explicit auth, TLS, and network policy.
 - Do not expose SearXNG port `8080` beyond host loopback unless you have reviewed production hardening and abuse controls.
 - Do not commit real `openclaw.json` files if they contain auth profiles, tokens, API keys, or local machine secrets.
-- Do not commit `~/.config/openclaw-gateway/gateway.env`; it contains runtime secrets such as `DISCORD_BOT_TOKEN`, `LITELLM_API_KEY`, and `SEARXNG_BASE_URL`.
+- Do not commit `~/.config/openclaw-gateway/gateway.env`; it contains runtime secrets such as `OPENCLAW_GATEWAY_TOKEN`, `DISCORD_BOT_TOKEN`, `LITELLM_API_KEY`, and `SEARXNG_BASE_URL`.
 - Do not commit `~/.config/litellm/litellm.env`; it contains the LiteLLM master key.
 - Do not commit `~/.config/searxng/settings.yml`; it contains the generated SearXNG `server.secret_key`.
 - Do not commit `~/.local/share/litellm/github_copilot`; it contains OAuth-derived Copilot credentials.

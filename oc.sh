@@ -87,6 +87,9 @@ Discord config options:
 
 Environment:
   LITELLM_MASTER_KEY      Optional LiteLLM master key.
+  OPENCLAW_GATEWAY_TOKEN  Optional Gateway auth token.
+  OPENCLAW_CONTROL_UI_ORIGIN
+                           Optional Control UI origin. Accepts full origin or hostname.
   SEARXNG_BASE_URL        Default: http://127.0.0.1:8080/
   SEARXNG_CATEGORIES      Default: general,news
   SEARXNG_LANGUAGE        Default: en
@@ -136,6 +139,8 @@ OpenClaw and is the default behavior for non-merge writes.
 Targets:
   openclaw
     Creates ~/.openclaw/openclaw.json if missing.
+    Generates OPENCLAW_GATEWAY_TOKEN in ~/.config/openclaw-gateway/gateway.env.
+    Configures local Gateway token auth and Control UI allowed origins.
     Enables the default persistent browser profile at http://127.0.0.1:9222.
     Adds the LiteLLM provider at http://127.0.0.1:4000.
     Sets the default primary model to litellm/github_copilot/gpt-5.4.
@@ -155,7 +160,8 @@ Targets:
   discord
     Requires DISCORD_BOT_TOKEN in the environment.
     Writes DISCORD_BOT_TOKEN into ~/.config/openclaw-gateway/gateway.env.
-    Patches ~/.openclaw/openclaw.json with a SecretRef and DM/guild allowlists.
+    Patches ~/.openclaw/openclaw.json with a SecretRef, thread bindings,
+    and DM/guild allowlists.
 
 Notes:
   Feature config commands use config set/unset internally.
@@ -185,7 +191,7 @@ Usage:
   DISCORD_BOT_TOKEN='...' ./oc.sh config discord --dm-user ID --guild ID [options] [--allow-current-user]
 
 Patch ~/.openclaw/openclaw.json with a Discord SecretRef, account allowlists,
-and optional agent binding. Writes the bot token into the gateway env file.
+thread bindings, and optional agent binding. Writes the bot token into the gateway env file.
 
 Options:
   --dm-user ID            Allowed Discord DM user. Repeatable. Required.
@@ -430,6 +436,38 @@ replace_env_value() {
   rm -f "${tmp}"
 }
 
+env_file_value() {
+  local file="$1"
+  local key="$2"
+  if [[ -f "${file}" ]]; then
+    grep "^${key}=" "${file}" | tail -n 1 | cut -d= -f2- || true
+  fi
+}
+
+normalize_origin() {
+  local origin="$1"
+  [[ -n "${origin}" ]] || return 0
+  case "${origin}" in
+    http://*|https://*) printf '%s\n' "${origin}" ;;
+    *) printf 'https://%s\n' "${origin}" ;;
+  esac
+}
+
+gateway_token() {
+  need_cmd openssl
+  ensure_user_dirs
+
+  local token="${OPENCLAW_GATEWAY_TOKEN:-}"
+  if [[ -z "${token}" ]]; then
+    token="$(env_file_value "${gateway_env}" "OPENCLAW_GATEWAY_TOKEN")"
+  fi
+  if [[ -z "${token}" ]]; then
+    token="ocgw-$(openssl rand -hex 24)"
+  fi
+
+  replace_env_value "${gateway_env}" "OPENCLAW_GATEWAY_TOKEN" "${token}"
+}
+
 ensure_openclaw_config_file() {
   ensure_user_dirs
   if [[ ! -f "${openclaw_config}" ]]; then
@@ -599,12 +637,39 @@ config_upsert_discord_binding() {
 
 config_openclaw() {
   need_cmd jq
+  gateway_token
+
+  local control_ui_origin=""
+  local allowed_origins_json
+  control_ui_origin="$(normalize_origin "${OPENCLAW_CONTROL_UI_ORIGIN:-}")"
+  if [[ -n "${control_ui_origin}" ]]; then
+    allowed_origins_json="$(printf '%s\n%s\n%s\n' \
+      "${control_ui_origin}" \
+      "http://127.0.0.1:18789" \
+      "http://localhost:18789" | jq -R . | jq -s 'unique')"
+  else
+    allowed_origins_json='["http://127.0.0.1:18789","http://localhost:18789"]'
+  fi
+
+  config_set_path "gateway.mode" "local"
+  config_set_path "gateway.bind" "lan"
+  config_set_json "gateway.port" "18789"
+  config_set_path "gateway.auth.mode" "token"
+  config_set_json "gateway.auth.token" '{"source":"env","provider":"default","id":"OPENCLAW_GATEWAY_TOKEN"}'
+  config_set_json "gateway.controlUi.allowedOrigins" "${allowed_origins_json}"
+  config_set_json "gateway.controlUi.allowInsecureAuth" "false"
+  config_set_json "secrets.providers.default" '{"source":"env"}'
+  config_set_path "session.dmScope" "per-channel-peer"
+  config_set_path "tools.profile" "coding"
+  config_set_json "tools.alsoAllow" '["browser"]'
+  config_set_json "plugins.entries.browser.enabled" "true"
+  config_set_json "plugins.entries.litellm.enabled" "true"
+
   config_set_json "browser.enabled" "true"
   config_set_path "browser.defaultProfile" "default"
   config_set_path "browser.profiles.default.cdpUrl" "http://127.0.0.1:9222"
   config_set_path "browser.profiles.default.color" "#FF4500"
   config_unset_path "browser.profiles.default.driver"
-  config_set_path "gateway.bind" "lan"
   config_set_json "models.providers.litellm" '{
     "baseUrl": "http://127.0.0.1:4000",
     "apiKey": "${LITELLM_API_KEY}",
@@ -824,6 +889,7 @@ config_discord() {
   guild_users_json="$(printf '%s\n' "${guild_users[@]}" | jq -R . | jq -s .)"
 
   config_set_json "channels.discord.enabled" "true"
+  config_set_json "channels.discord.threadBindings.enabled" "true"
   config_set_json "secrets.providers.default" '{"source":"env"}'
   config_set_json "channels.discord.accounts.${account_id}.token" "{\"source\":\"env\",\"provider\":\"default\",\"id\":\"${token_env}\"}"
   config_set_path "channels.discord.accounts.${account_id}.dmPolicy" "allowlist"

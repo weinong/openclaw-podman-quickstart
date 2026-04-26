@@ -7,6 +7,7 @@ This guide configures OpenClaw's Discord channel with:
 - guild/server allowlist
 - optional guild channel allowlist
 - optional guild user allowlist
+- Discord thread bindings enabled for channel/thread workflows
 - mention gating enabled by default, with optional guild or channel-level overrides for private workspaces
 
 The raw token is not stored in `openclaw.json`; only a SecretRef to `DISCORD_BOT_TOKEN` is stored there.
@@ -124,6 +125,9 @@ The script patches the Discord channel block into `openclaw.json`:
   "channels": {
     "discord": {
       "enabled": true,
+      "threadBindings": {
+        "enabled": true
+      },
       "defaultAccount": "default",
       "accounts": {
         "default": {
