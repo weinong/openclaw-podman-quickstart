@@ -11,6 +11,12 @@ workspace/
 logs/
 state/
 
+# Generated service configs with secrets
+.local/share/litellm/
+.config/litellm/litellm.env
+.config/openclaw-gateway/gateway.env
+.config/searxng/settings.yml
+
 # Editors
 .vscode/
 .idea/
