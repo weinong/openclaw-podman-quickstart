@@ -538,6 +538,7 @@ config_openclaw() {
   config_set_path "browser.profiles.default.cdpUrl" "http://127.0.0.1:9222"
   config_set_path "browser.profiles.default.color" "#FF4500"
   config_unset_path "browser.profiles.default.driver"
+  config_set_path "gateway.bind" "lan"
   config_set_json "models.providers.litellm" '{
     "baseUrl": "http://127.0.0.1:4000",
     "apiKey": "${LITELLM_API_KEY}",

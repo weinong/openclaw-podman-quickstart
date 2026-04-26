@@ -163,6 +163,7 @@ Feature-specific config commands remain available and use `config set`/`unset` i
 
 That command creates or patches `~/.openclaw/openclaw.json` with:
 
+- Gateway bind mode `lan`, for container bridge networking behind host-loopback Podman port publishing.
 - A persistent CDP browser profile at `http://127.0.0.1:9222`.
 - A LiteLLM model provider at `http://127.0.0.1:4000`.
 - The default primary model `litellm/github_copilot/gpt-4`.
