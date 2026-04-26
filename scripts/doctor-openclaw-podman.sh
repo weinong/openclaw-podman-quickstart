@@ -5,6 +5,7 @@ echo "== user systemd services =="
 systemctl --user status openclaw-pod.service --no-pager || true
 systemctl --user status openclaw-browser.service --no-pager || true
 systemctl --user status litellm.service --no-pager || true
+systemctl --user status searxng.service --no-pager || true
 systemctl --user status openclaw-gateway.service --no-pager || true
 
 echo
@@ -38,6 +39,15 @@ if command -v curl >/dev/null 2>&1; then
   else
     echo "LITELLM_MASTER_KEY is not set; skipping authenticated /models check."
   fi
+else
+  echo "curl is not installed."
+fi
+
+echo
+echo "== SearXNG endpoint =="
+if command -v curl >/dev/null 2>&1; then
+  curl -fsS http://127.0.0.1:8080/ >/dev/null && echo "SearXNG HTML endpoint OK" || true
+  curl -fsS 'http://127.0.0.1:8080/search?q=openclaw&format=json' | jq '.query, (.results | length)' || true
 else
   echo "curl is not installed."
 fi
