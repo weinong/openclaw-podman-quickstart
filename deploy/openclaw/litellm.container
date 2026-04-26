@@ -8,7 +8,9 @@ Pod=openclaw.pod
 Image=docker.io/berriai/litellm:main-latest
 ContainerName=openclaw-litellm
 EnvironmentFile=%h/.config/litellm/litellm.env
+Environment=GITHUB_COPILOT_TOKEN_DIR=/data/github_copilot
 Volume=%h/.config/litellm/config.yaml:/app/config.yaml:Z
+Volume=%h/.local/share/litellm:/data:Z
 Exec=--config /app/config.yaml --port 4000 --host 0.0.0.0
 
 [Service]
