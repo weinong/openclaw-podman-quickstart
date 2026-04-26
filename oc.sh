@@ -144,7 +144,7 @@ Targets:
     Creates ~/.config/searxng/settings.yml if missing, with a generated secret.
     Leaves existing SearXNG settings unchanged.
     Writes SEARXNG_BASE_URL into ~/.config/openclaw-gateway/gateway.env.
-    Patches ~/.openclaw/openclaw.json to use SearXNG for web search.
+    Enables the bundled SearXNG plugin and patches OpenClaw web search config.
 
   discord
     Requires DISCORD_BOT_TOKEN in the environment.
@@ -653,6 +653,7 @@ EOF
   replace_env_value "${gateway_env}" "SEARXNG_BASE_URL" "${base_url}"
 
   config_set_path "tools.web.search.provider" "searxng"
+  config_set_json "plugins.entries.searxng.enabled" "true"
   config_set_path "plugins.entries.searxng.config.webSearch.baseUrl" "${base_url}"
   config_set_path "plugins.entries.searxng.config.webSearch.categories" "${categories}"
   config_set_path "plugins.entries.searxng.config.webSearch.language" "${language}"

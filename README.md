@@ -231,6 +231,8 @@ Refresh SearXNG config:
 ./oc.sh restart searxng
 ```
 
+`./oc.sh config searxng` enables OpenClaw's bundled SearXNG plugin and points it at the local sidecar.
+
 ## Persistent Browser
 
 Validate Chromium CDP:

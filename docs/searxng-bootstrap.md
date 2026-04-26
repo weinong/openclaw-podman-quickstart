@@ -1,6 +1,6 @@
 # Bootstrap SearXNG for OpenClaw
 
-This guide runs SearXNG as a rootless Podman sidecar and configures OpenClaw to use it as the `web_search` provider.
+This guide runs SearXNG as a rootless Podman sidecar and configures OpenClaw to use it as the `web_search` provider through the bundled SearXNG plugin.
 
 ## Target Architecture
 
@@ -49,6 +49,7 @@ The installer copies or creates:
   "plugins": {
     "entries": {
       "searxng": {
+        "enabled": true,
         "config": {
           "webSearch": {
             "baseUrl": "http://127.0.0.1:8080/",
