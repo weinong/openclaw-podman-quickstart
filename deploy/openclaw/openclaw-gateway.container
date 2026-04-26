@@ -5,7 +5,7 @@ Requires=openclaw-pod.service openclaw-browser.service litellm.service searxng.s
 
 [Container]
 Pod=openclaw.pod
-Image=ghcr.io/openclaw/openclaw:2026.4.24@sha256:7c4370ff8777555d4c9fe5ab821aaaad7c87188d389a6cf761270725d96ec3e9
+Image=__OPENCLAW_GATEWAY_IMAGE__
 ContainerName=openclaw-gateway
 Volume=%h/.openclaw:/home/node/.openclaw:Z
 Volume=%h/.openclaw/workspace:/home/node/.openclaw/workspace:Z

@@ -20,6 +20,8 @@ The pod publishes SearXNG on host loopback only:
 127.0.0.1:8080:8080
 ```
 
+The SearXNG container receives only `~/.config/searxng/settings.yml` as a read-only file mount. `oc.sh` owns that host-generated config file; the container consumes it without owning or mutating the host config directory.
+
 ## Files Installed
 
 The installer copies or creates:
@@ -31,7 +33,7 @@ The installer copies or creates:
 ~/.openclaw/openclaw.json
 ```
 
-`settings.yml` contains a generated `server.secret_key`. Do not commit the generated runtime file.
+`settings.yml` is installed from `config/searxng/settings.yml` when missing. `oc.sh` replaces the template secret with a generated `server.secret_key` and applies the configured base URL. Do not commit the generated runtime file.
 
 ## OpenClaw Config
 

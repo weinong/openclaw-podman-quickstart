@@ -32,18 +32,22 @@ image_refs=(
   "docker.io/searxng/searxng:2026.4.24-a7ac696b4@sha256:c9100c29c14a77d5289263a671580226c3b8a396a1a0130d2f500f57076a0119"
 )
 
+openclaw_gateway_image="${image_refs[0]}"
+openclaw_browser_image="${image_refs[1]}"
+litellm_image="${image_refs[2]}"
+searxng_image="${image_refs[3]}"
+
 usage() {
   cat <<'EOF'
 Usage:
   ./oc.sh install [fallback|quadlet] [--start-gateway] [--allow-current-user]
-  ./oc.sh uninstall [--purge --yes] [--allow-current-user]
+  ./oc.sh uninstall [--purge --yes|-y] [--allow-current-user]
   ./oc.sh init [--allow-current-user]
-  ./oc.sh config openclaw|litellm|searxng [--allow-current-user]
-  DISCORD_BOT_TOKEN='...' ./oc.sh config discord [options]
-  ./oc.sh start|stop|restart|status [service]
-  ./oc.sh logs [service]
+  ./oc.sh config file|get|set|unset|openclaw|litellm|searxng|discord [options]
+  ./oc.sh start|stop|restart|status [service] [--allow-current-user]
+  ./oc.sh logs [service] [--allow-current-user]
   ./oc.sh images [--json]
-  ./oc.sh doctor
+  ./oc.sh doctor [--allow-current-user]
 
 Install:
   install                 One-shot install. Auto-detects Quadlet .pod support.
@@ -51,8 +55,8 @@ Install:
   install quadlet         Install Quadlet units for newer Podman.
 
 Uninstall:
-  uninstall               Stop services and remove installed units/helpers only.
-  uninstall --purge --yes Also remove generated config, credentials, and data.
+  uninstall                  Stop services and remove installed units/helpers only.
+  uninstall --purge --yes|-y Also remove generated config, credentials, and data.
 
 Images:
   images                  Print pinned image tags and sha256 manifest digests.
@@ -69,18 +73,23 @@ Services:
 
 Discord config options:
   --dm-user ID            Allowed Discord DM user. Repeatable.
-  --guild ID              Allowed Discord guild/server. Repeatable.
+  --guild, --server ID    Allowed Discord guild/server. Repeatable.
   --account ID            Discord account/bot id. Default: default.
   --token-env ENV_VAR     Env var used by SecretRef. Default: DISCORD_BOT_TOKEN
                            for default account, DISCORD_BOT_TOKEN_<ACCOUNT> otherwise.
   --agent ID              Bind this Discord account to an agent id.
   --workspace PATH        Workspace for --agent. Default: ~/.openclaw/workspace-<agent>.
   --guild-user ID         Allowed guild user. Defaults to --dm-user values.
-  --channel-id ID         Allowed guild channel. Repeatable.
-  --require-mention bool  true or false. Default: false.
+  --channel, --channel-id ID
+                           Allowed guild channel. Repeatable.
+  --require-mention bool  true or false. Default: true. With --channel-id,
+                           applies to listed channels only.
 
 Environment:
   LITELLM_MASTER_KEY      Optional LiteLLM master key.
+  OPENCLAW_GATEWAY_TOKEN  Optional Gateway auth token.
+  OPENCLAW_CONTROL_UI_ORIGIN
+                           Optional Control UI origin. Accepts full origin or hostname.
   SEARXNG_BASE_URL        Default: http://127.0.0.1:8080/
   SEARXNG_CATEGORIES      Default: general,news
   SEARXNG_LANGUAGE        Default: en
@@ -104,7 +113,7 @@ usage_config() {
 Usage:
   ./oc.sh config file [--allow-current-user]
   ./oc.sh config get <path> [--json] [--allow-current-user]
-  ./oc.sh config set <path> <value> [--strict-json] [--merge] [--replace] [--allow-current-user]
+  ./oc.sh config set <path> <value> [--strict-json|--json] [--merge] [--replace] [--allow-current-user]
   ./oc.sh config unset <path> [--allow-current-user]
   ./oc.sh config openclaw [--allow-current-user]
   ./oc.sh config litellm [--allow-current-user]
@@ -123,16 +132,18 @@ Paths use dot and array-index notation, for example:
   agents.list[0].tools.exec.node
 
 Values are parsed as JSON when possible, otherwise as strings. Use
---strict-json to require JSON parsing. Use --merge to merge object values
+--strict-json or --json to require JSON parsing. Use --merge to merge object values
 with the existing object at the path. --replace is accepted for parity with
 OpenClaw and is the default behavior for non-merge writes.
 
 Targets:
   openclaw
     Creates ~/.openclaw/openclaw.json if missing.
+    Generates OPENCLAW_GATEWAY_TOKEN in ~/.config/openclaw-gateway/gateway.env.
+    Configures local Gateway token auth and Control UI allowed origins.
     Enables the default persistent browser profile at http://127.0.0.1:9222.
     Adds the LiteLLM provider at http://127.0.0.1:4000.
-    Sets the default primary model to litellm/github_copilot/gpt-4.
+    Sets the default primary model to litellm/github_copilot/gpt-5.4.
 
   litellm
     Creates ~/.config/litellm/litellm.env with LITELLM_MASTER_KEY.
@@ -141,7 +152,7 @@ Targets:
     Creates LiteLLM token-cache directories under ~/.local/share/litellm.
 
   searxng
-    Creates ~/.config/searxng/settings.yml if missing, with a generated secret.
+    Installs the bundled SearXNG settings template if missing, with a generated secret.
     Leaves existing SearXNG settings unchanged.
     Writes SEARXNG_BASE_URL into ~/.config/openclaw-gateway/gateway.env.
     Enables the bundled SearXNG plugin and patches OpenClaw web search config.
@@ -149,7 +160,8 @@ Targets:
   discord
     Requires DISCORD_BOT_TOKEN in the environment.
     Writes DISCORD_BOT_TOKEN into ~/.config/openclaw-gateway/gateway.env.
-    Patches ~/.openclaw/openclaw.json with a SecretRef and DM/guild allowlists.
+    Patches ~/.openclaw/openclaw.json with a SecretRef, thread bindings,
+    and DM/guild allowlists.
 
 Notes:
   Feature config commands use config set/unset internally.
@@ -159,10 +171,42 @@ Notes:
 
 Discord options:
   --dm-user ID            Allowed Discord DM user. Repeatable.
-  --guild ID              Allowed Discord guild/server. Repeatable.
+  --guild, --server ID    Allowed Discord guild/server. Repeatable.
+  --account ID            Discord account/bot id. Default: default.
+  --token-env ENV_VAR     Env var used by SecretRef. Default: DISCORD_BOT_TOKEN
+                           for default account, DISCORD_BOT_TOKEN_<ACCOUNT> otherwise.
+  --agent ID              Bind this Discord account to an agent id.
+  --workspace PATH        Workspace for --agent. Default: ~/.openclaw/workspace-<agent>.
   --guild-user ID         Allowed guild user. Defaults to --dm-user values.
-  --channel-id ID         Allowed guild channel. Repeatable.
-  --require-mention bool  true or false. Default: false.
+  --channel, --channel-id ID
+                           Allowed guild channel. Repeatable.
+  --require-mention bool  true or false. Default: true. With --channel-id,
+                           applies to listed channels only.
+EOF
+}
+
+usage_config_discord() {
+  cat <<'EOF'
+Usage:
+  DISCORD_BOT_TOKEN='...' ./oc.sh config discord --dm-user ID --guild ID [options] [--allow-current-user]
+
+Patch ~/.openclaw/openclaw.json with a Discord SecretRef, account allowlists,
+thread bindings, and optional agent binding. Writes the bot token into the gateway env file.
+
+Options:
+  --dm-user ID            Allowed Discord DM user. Repeatable. Required.
+  --guild, --server ID    Allowed Discord guild/server. Repeatable. Required.
+  --account ID            Discord account/bot id. Default: default.
+  --token-env ENV_VAR     Env var used by SecretRef. Default: DISCORD_BOT_TOKEN
+                           for default account, DISCORD_BOT_TOKEN_<ACCOUNT> otherwise.
+  --agent ID              Bind this Discord account to an agent id.
+  --workspace PATH        Workspace for --agent. Default: ~/.openclaw/workspace-<agent>.
+  --guild-user ID         Allowed guild user. Defaults to --dm-user values.
+  --channel, --channel-id ID
+                           Allowed guild channel. Repeatable.
+  --require-mention bool  true or false. Default: true. With --channel-id,
+                           applies to listed channels only.
+  --allow-current-user    Allow running as a non-openclaw, non-root user.
 EOF
 }
 
@@ -249,6 +293,34 @@ split_image_ref() {
   image_digest="sha256:${ref##*@sha256:}"
   image_repository="${image_without_digest%:*}"
   image_tag="${image_without_digest##*:}"
+}
+
+render_image_template() {
+  local source="$1"
+  local dest="$2"
+  local mode="$3"
+  local tmp
+  tmp="$(mktemp)"
+
+  OPENCLAW_GATEWAY_IMAGE="${openclaw_gateway_image}" \
+    OPENCLAW_BROWSER_IMAGE="${openclaw_browser_image}" \
+    LITELLM_IMAGE="${litellm_image}" \
+    SEARXNG_IMAGE="${searxng_image}" \
+    jq -nr --rawfile template "${source}" '
+      $template
+      | gsub("__OPENCLAW_GATEWAY_IMAGE__"; env.OPENCLAW_GATEWAY_IMAGE)
+      | gsub("__OPENCLAW_BROWSER_IMAGE__"; env.OPENCLAW_BROWSER_IMAGE)
+      | gsub("__LITELLM_IMAGE__"; env.LITELLM_IMAGE)
+      | gsub("__SEARXNG_IMAGE__"; env.SEARXNG_IMAGE)
+    ' > "${tmp}"
+
+  if grep -q '__[A-Z0-9_]*_IMAGE__' "${tmp}"; then
+    rm -f "${tmp}"
+    die "unresolved image placeholder while rendering ${source}"
+  fi
+
+  install -m "${mode}" "${tmp}" "${dest}"
+  rm -f "${tmp}"
 }
 
 print_images() {
@@ -362,6 +434,38 @@ replace_env_value() {
   printf '%s=%s\n' "${key}" "${value}" >> "${tmp}"
   install -m 0600 "${tmp}" "${file}"
   rm -f "${tmp}"
+}
+
+env_file_value() {
+  local file="$1"
+  local key="$2"
+  if [[ -f "${file}" ]]; then
+    grep "^${key}=" "${file}" | tail -n 1 | cut -d= -f2- || true
+  fi
+}
+
+normalize_origin() {
+  local origin="$1"
+  [[ -n "${origin}" ]] || return 0
+  case "${origin}" in
+    http://*|https://*) printf '%s\n' "${origin}" ;;
+    *) printf 'https://%s\n' "${origin}" ;;
+  esac
+}
+
+gateway_token() {
+  need_cmd openssl
+  ensure_user_dirs
+
+  local token="${OPENCLAW_GATEWAY_TOKEN:-}"
+  if [[ -z "${token}" ]]; then
+    token="$(env_file_value "${gateway_env}" "OPENCLAW_GATEWAY_TOKEN")"
+  fi
+  if [[ -z "${token}" ]]; then
+    token="ocgw-$(openssl rand -hex 24)"
+  fi
+
+  replace_env_value "${gateway_env}" "OPENCLAW_GATEWAY_TOKEN" "${token}"
 }
 
 ensure_openclaw_config_file() {
@@ -533,36 +637,71 @@ config_upsert_discord_binding() {
 
 config_openclaw() {
   need_cmd jq
+  gateway_token
+
+  local control_ui_origin=""
+  local allowed_origins_json
+  control_ui_origin="$(normalize_origin "${OPENCLAW_CONTROL_UI_ORIGIN:-}")"
+  if [[ -n "${control_ui_origin}" ]]; then
+    allowed_origins_json="$(printf '%s\n%s\n%s\n' \
+      "${control_ui_origin}" \
+      "http://127.0.0.1:18789" \
+      "http://localhost:18789" | jq -R . | jq -s 'unique')"
+  else
+    allowed_origins_json='["http://127.0.0.1:18789","http://localhost:18789"]'
+  fi
+
+  config_set_path "gateway.mode" "local"
+  config_set_path "gateway.bind" "lan"
+  config_set_json "gateway.port" "18789"
+  config_set_path "gateway.auth.mode" "token"
+  config_set_json "gateway.auth.token" '{"source":"env","provider":"default","id":"OPENCLAW_GATEWAY_TOKEN"}'
+  config_set_json "gateway.controlUi.allowedOrigins" "${allowed_origins_json}"
+  config_set_json "gateway.controlUi.allowInsecureAuth" "false"
+  config_set_json "secrets.providers.default" '{"source":"env"}'
+  config_set_path "session.dmScope" "per-channel-peer"
+  config_set_path "tools.profile" "coding"
+  config_set_json "tools.alsoAllow" '["browser"]'
+  config_set_json "plugins.entries.browser.enabled" "true"
+  config_set_json "plugins.entries.litellm.enabled" "true"
+
   config_set_json "browser.enabled" "true"
   config_set_path "browser.defaultProfile" "default"
   config_set_path "browser.profiles.default.cdpUrl" "http://127.0.0.1:9222"
   config_set_path "browser.profiles.default.color" "#FF4500"
   config_unset_path "browser.profiles.default.driver"
-  config_set_path "gateway.bind" "lan"
   config_set_json "models.providers.litellm" '{
     "baseUrl": "http://127.0.0.1:4000",
     "apiKey": "${LITELLM_API_KEY}",
-    "api": "openai-completions",
+    "api": "openai-responses",
     "models": [
       {
-        "id": "github_copilot/gpt-4",
-        "name": "GitHub Copilot GPT-4 via LiteLLM",
-        "reasoning": false,
+        "id": "github_copilot/gpt-5.4",
+        "name": "GitHub Copilot GPT-5.4 via LiteLLM",
+        "reasoning": true,
         "input": ["text"],
         "contextWindow": 128000,
-        "maxTokens": 8192
+        "maxTokens": 32768
       },
       {
-        "id": "chatgpt/gpt-5.4",
-        "name": "ChatGPT GPT-5.4 via LiteLLM",
+        "id": "github_copilot/gpt-5.5",
+        "name": "GitHub Copilot GPT-5.5 via LiteLLM",
         "reasoning": true,
         "input": ["text", "image"],
         "contextWindow": 128000,
         "maxTokens": 32768
+      },
+      {
+        "id": "github_copilot/claude-opus-4.6",
+        "name": "GitHub Copilot Claude Opus 4.6 via LiteLLM",
+        "reasoning": true,
+        "input": ["text", "image"],
+        "contextWindow": 200000,
+        "maxTokens": 32000
       }
     ]
   }'
-  config_set_path "agents.defaults.model.primary" "litellm/github_copilot/gpt-4"
+  config_set_path "agents.defaults.model.primary" "litellm/github_copilot/gpt-5.4"
 
   echo "OpenClaw config updated: ${openclaw_config}"
 }
@@ -585,9 +724,9 @@ config_litellm() {
   tmp="$(mktemp)"
   cat > "${tmp}" <<EOF
 LITELLM_MASTER_KEY=${master_key}
-# GitHub Copilot and ChatGPT providers use OAuth device flow.
-# No upstream API key is required for the default config.yaml.
-# The first model request for each provider prints a device login URL/code in LiteLLM logs.
+# GitHub Copilot uses OAuth device flow in the default config.yaml.
+# The first model request prints a device login URL/code in LiteLLM logs.
+# Uncomment or add models in config.yaml for your subscription or API-key providers.
 EOF
   install -m 0600 "${tmp}" "${litellm_env}"
   rm -f "${tmp}"
@@ -612,40 +751,22 @@ config_searxng() {
   local categories="${SEARXNG_CATEGORIES:-general,news}"
   local language="${SEARXNG_LANGUAGE:-en}"
   local settings_file="${HOME}/.config/searxng/settings.yml"
+  local settings_template="${repo_root}/config/searxng/settings.yml"
 
   if [[ ! -f "${settings_file}" ]]; then
+    [[ -f "${settings_template}" ]] || die "missing SearXNG settings template: ${settings_template}"
     local secret_key
     secret_key="$(openssl rand -hex 32)"
-    cat > "${settings_file}" <<EOF
-use_default_settings: true
-
-server:
-  bind_address: "0.0.0.0"
-  port: 8080
-  secret_key: "${secret_key}"
-  base_url: "${base_url}"
-  image_proxy: true
-  limiter: false
-
-ui:
-  static_use_hash: true
-  default_locale: "en"
-  query_in_title: false
-
-search:
-  safe_search: 1
-  autocomplete: ""
-  default_lang: "auto"
-  formats:
-    - html
-    - json
-
-outgoing:
-  request_timeout: 5.0
-  max_request_timeout: 15.0
-  useragent_suffix: "openclaw-podman-quickstart"
-EOF
-    chmod 0600 "${settings_file}"
+    local tmp
+    tmp="$(mktemp)"
+    TEMPLATE_SECRET_KEY="${secret_key}" TEMPLATE_BASE_URL="${base_url}" \
+      jq -nr --rawfile template "${settings_template}" '
+        $template
+        | gsub("CHANGE_ME_SEARXNG_SECRET"; env.TEMPLATE_SECRET_KEY)
+        | gsub("http://127.0.0.1:8080/"; env.TEMPLATE_BASE_URL)
+      ' > "${tmp}"
+    install -m 0600 "${tmp}" "${settings_file}"
+    rm -f "${tmp}"
   else
     echo "Existing ${settings_file} found; leaving it unchanged."
   fi
@@ -667,7 +788,7 @@ config_discord() {
   ensure_user_dirs
   ensure_openclaw_config_file
 
-  local require_mention="false"
+  local require_mention="true"
   local account_id="default"
   local token_env=""
   local agent_id=""
@@ -768,6 +889,7 @@ config_discord() {
   guild_users_json="$(printf '%s\n' "${guild_users[@]}" | jq -R . | jq -s .)"
 
   config_set_json "channels.discord.enabled" "true"
+  config_set_json "channels.discord.threadBindings.enabled" "true"
   config_set_json "secrets.providers.default" '{"source":"env"}'
   config_set_json "channels.discord.accounts.${account_id}.token" "{\"source\":\"env\",\"provider\":\"default\",\"id\":\"${token_env}\"}"
   config_set_path "channels.discord.accounts.${account_id}.dmPolicy" "allowlist"
@@ -779,7 +901,11 @@ config_discord() {
   fi
 
   for guild_id in "${guild_ids[@]}"; do
-    config_set_json "channels.discord.accounts.${account_id}.guilds.${guild_id}.requireMention" "${require_mention}"
+    if [[ "${#channel_ids[@]}" -eq 0 ]]; then
+      config_set_json "channels.discord.accounts.${account_id}.guilds.${guild_id}.requireMention" "${require_mention}"
+    else
+      config_set_json "channels.discord.accounts.${account_id}.guilds.${guild_id}.requireMention" "true"
+    fi
     config_set_json "channels.discord.accounts.${account_id}.guilds.${guild_id}.users" "${guild_users_json}"
     for channel_id in "${channel_ids[@]}"; do
       config_set_json "channels.discord.accounts.${account_id}.guilds.${guild_id}.channels.${channel_id}.allow" "true"
@@ -848,21 +974,21 @@ service_name() {
 
 copy_quadlet_units() {
   ensure_user_dirs
-  install -m 0644 "${repo_root}/deploy/openclaw/openclaw.pod" "${HOME}/.config/containers/systemd/openclaw.pod"
-  install -m 0644 "${repo_root}/deploy/openclaw/openclaw-browser.container" "${HOME}/.config/containers/systemd/openclaw-browser.container"
-  install -m 0644 "${repo_root}/deploy/openclaw/litellm.container" "${HOME}/.config/containers/systemd/litellm.container"
-  install -m 0644 "${repo_root}/deploy/openclaw/searxng.container" "${HOME}/.config/containers/systemd/searxng.container"
-  install -m 0644 "${repo_root}/deploy/openclaw/openclaw-gateway.container" "${HOME}/.config/containers/systemd/openclaw-gateway.container"
+  render_image_template "${repo_root}/deploy/openclaw/openclaw.pod" "${HOME}/.config/containers/systemd/openclaw.pod" 0644
+  render_image_template "${repo_root}/deploy/openclaw/openclaw-browser.container" "${HOME}/.config/containers/systemd/openclaw-browser.container" 0644
+  render_image_template "${repo_root}/deploy/openclaw/litellm.container" "${HOME}/.config/containers/systemd/litellm.container" 0644
+  render_image_template "${repo_root}/deploy/openclaw/searxng.container" "${HOME}/.config/containers/systemd/searxng.container" 0644
+  render_image_template "${repo_root}/deploy/openclaw/openclaw-gateway.container" "${HOME}/.config/containers/systemd/openclaw-gateway.container" 0644
 }
 
 copy_fallback_units() {
   ensure_user_dirs
   local unit helper
   for unit in "${repo_root}"/deploy/openclaw-systemd/*.service; do
-    install -m 0644 "${unit}" "${HOME}/.config/systemd/user/$(basename "${unit}")"
+    render_image_template "${unit}" "${HOME}/.config/systemd/user/$(basename "${unit}")" 0644
   done
   for helper in "${repo_root}"/deploy/openclaw-systemd/bin/*; do
-    install -m 0755 "${helper}" "${HOME}/.local/bin/$(basename "${helper}")"
+    render_image_template "${helper}" "${HOME}/.local/bin/$(basename "${helper}")" 0755
   done
 }
 
@@ -1032,6 +1158,8 @@ main() {
       case "${1:-}" in -h|--help) usage_init; exit 0 ;; esac
       parse_common_flags "$@"
       assert_openclaw_user "${allow_current_user}"
+      set -- "${remaining_args[@]}"
+      [[ $# -eq 0 ]] || die "init does not accept extra arguments: $*"
       ensure_user_dirs
       echo "Initialized OpenClaw directories under ${HOME}."
       ;;
@@ -1040,7 +1168,16 @@ main() {
       case "${1:-}" in -h|--help|"") usage_config; exit 0 ;; esac
       local config_target="${1:-}"
       shift
-      case "${1:-}" in -h|--help) usage_config; exit 0 ;; esac
+      case "${1:-}" in
+        -h|--help)
+          if [[ "${config_target}" == "discord" ]]; then
+            usage_config_discord
+          else
+            usage_config
+          fi
+          exit 0
+          ;;
+      esac
       parse_common_flags "$@"
       assert_openclaw_user "${allow_current_user}"
       set -- "${remaining_args[@]}"
@@ -1146,6 +1283,8 @@ main() {
       done
       parse_common_flags "${args[@]}"
       assert_openclaw_user "${allow_current_user}"
+      set -- "${remaining_args[@]}"
+      [[ $# -eq 0 ]] || die "install does not accept extra arguments: $*"
       need_cmd jq
       need_cmd podman
       need_cmd systemctl
@@ -1185,6 +1324,8 @@ main() {
       done
       parse_common_flags "${args[@]}"
       assert_openclaw_user "${allow_current_user}"
+      set -- "${remaining_args[@]}"
+      [[ $# -eq 0 ]] || die "uninstall does not accept extra arguments: $*"
       uninstall_openclaw "${purge}" "${yes}"
       ;;
     images)
@@ -1203,6 +1344,7 @@ main() {
       parse_common_flags "$@"
       assert_openclaw_user "${allow_current_user}"
       set -- "${remaining_args[@]}"
+      [[ $# -le 1 ]] || die "${action} accepts at most one service argument"
       mapfile -t selected_services < <(service_name "${1:-all}")
       if [[ "${action}" == "status" ]]; then
         systemctl_user status "${selected_services[@]}" --no-pager
@@ -1216,6 +1358,7 @@ main() {
       parse_common_flags "$@"
       assert_openclaw_user "${allow_current_user}"
       set -- "${remaining_args[@]}"
+      [[ $# -le 1 ]] || die "logs accepts at most one service argument"
       mapfile -t selected_services < <(service_name "${1:-gateway}")
       require_user_systemd_bus
       journalctl --user -u "${selected_services[@]}" -f
@@ -1225,6 +1368,8 @@ main() {
       case "${1:-}" in -h|--help) usage_doctor; exit 0 ;; esac
       parse_common_flags "$@"
       assert_openclaw_user "${allow_current_user}"
+      set -- "${remaining_args[@]}"
+      [[ $# -eq 0 ]] || die "doctor does not accept extra arguments: $*"
       doctor
       ;;
     *)

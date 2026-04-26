@@ -14,5 +14,5 @@ exec /usr/bin/podman run --rm \
   -e CHATGPT_TOKEN_DIR=/data/chatgpt \
   -v "${HOME}/.config/litellm/config.yaml:/app/config.yaml:Z" \
   -v "${HOME}/.local/share/litellm:/data:Z" \
-  docker.litellm.ai/berriai/litellm:main-v1.82.3@sha256:067aee932b8770ed42955ee802a04abdcd369d0995b5e696bb07d6520a231b1c \
+  __LITELLM_IMAGE__ \
   --config /app/config.yaml --port 4000 --host 0.0.0.0

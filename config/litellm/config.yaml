@@ -1,57 +1,58 @@
 model_list:
   # GitHub Copilot subscription models
-  - model_name: github_copilot/gpt-4
-    litellm_params:
-      model: github_copilot/gpt-4
-
-  - model_name: github_copilot/gpt-5.1-codex
+  - model_name: github_copilot/gpt-5.4
     model_info:
       mode: responses
     litellm_params:
-      model: github_copilot/gpt-5.1-codex
+      model: github_copilot/gpt-5.4
 
-  - model_name: github_copilot/text-embedding-3-small
-    model_info:
-      mode: embedding
-    litellm_params:
-      model: github_copilot/text-embedding-3-small
-
-  # ChatGPT subscription models
-  - model_name: chatgpt/gpt-5.4
+  - model_name: github_copilot/gpt-5.5
     model_info:
       mode: responses
     litellm_params:
-      model: chatgpt/gpt-5.4
+      model: github_copilot/gpt-5.5
 
-  - model_name: chatgpt/gpt-5.4-pro
-    model_info:
-      mode: responses
+  - model_name: github_copilot/claude-opus-4.6
     litellm_params:
-      model: chatgpt/gpt-5.4-pro
+      model: github_copilot/claude-opus-4.6
 
-  - model_name: chatgpt/gpt-5.3-codex
-    model_info:
-      mode: responses
-    litellm_params:
-      model: chatgpt/gpt-5.3-codex
+  # ChatGPT subscription models. Uncomment only models available to your
+  # subscription or replace with API-key-backed providers you have configured.
+  # - model_name: chatgpt/gpt-5.4
+  #   model_info:
+  #     mode: responses
+  #   litellm_params:
+  #     model: chatgpt/gpt-5.4
 
-  - model_name: chatgpt/gpt-5.3-codex-spark
-    model_info:
-      mode: responses
-    litellm_params:
-      model: chatgpt/gpt-5.3-codex-spark
+  # - model_name: chatgpt/gpt-5.4-pro
+  #   model_info:
+  #     mode: responses
+  #   litellm_params:
+  #     model: chatgpt/gpt-5.4-pro
 
-  - model_name: chatgpt/gpt-5.3-instant
-    model_info:
-      mode: responses
-    litellm_params:
-      model: chatgpt/gpt-5.3-instant
+  # - model_name: chatgpt/gpt-5.3-codex
+  #   model_info:
+  #     mode: responses
+  #   litellm_params:
+  #     model: chatgpt/gpt-5.3-codex
 
-  - model_name: chatgpt/gpt-5.3-chat-latest
-    model_info:
-      mode: responses
-    litellm_params:
-      model: chatgpt/gpt-5.3-chat-latest
+  # - model_name: chatgpt/gpt-5.3-codex-spark
+  #   model_info:
+  #     mode: responses
+  #   litellm_params:
+  #     model: chatgpt/gpt-5.3-codex-spark
+
+  # - model_name: chatgpt/gpt-5.3-instant
+  #   model_info:
+  #     mode: responses
+  #   litellm_params:
+  #     model: chatgpt/gpt-5.3-instant
+
+  # - model_name: chatgpt/gpt-5.3-chat-latest
+  #   model_info:
+  #     mode: responses
+  #   litellm_params:
+  #     model: chatgpt/gpt-5.3-chat-latest
 
 litellm_settings:
   drop_params: true

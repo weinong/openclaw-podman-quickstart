@@ -87,8 +87,10 @@ cd openclaw-podman-quickstart
 
 - Creates directories under `~/.config`, `~/.local/share`, and `~/.openclaw`.
 - Creates or patches `~/.openclaw/openclaw.json`.
+- Generates `OPENCLAW_GATEWAY_TOKEN` in `~/.config/openclaw-gateway/gateway.env` and stores a SecretRef in `openclaw.json`.
+- Configures local Gateway mode, token auth, Control UI origins, coding tool profile plus browser access, per-channel-peer DM sessions, and the browser plugin.
 - Configures LiteLLM and writes `~/.config/litellm/litellm.env`.
-- Configures SearXNG and writes `~/.config/searxng/settings.yml`.
+- Configures SearXNG and installs `~/.config/searxng/settings.yml` from the bundled template with a generated secret.
 - Installs user systemd units.
 - Starts the pod, browser, LiteLLM, and SearXNG services.
 - Leaves `openclaw-gateway.service` installed but stopped by default.
@@ -98,6 +100,13 @@ Start the gateway after OpenClaw onboarding/configuration is ready:
 ```bash
 ./oc.sh start gateway
 ./oc.sh logs gateway
+```
+
+Set `OPENCLAW_CONTROL_UI_ORIGIN` before `./oc.sh config openclaw` or `./oc.sh install` to allow a tailnet Control UI origin. Both full origins and hostnames are accepted:
+
+```bash
+OPENCLAW_CONTROL_UI_ORIGIN=https://ubuntu-ts-01.example.ts.net ./oc.sh config openclaw
+OPENCLAW_CONTROL_UI_ORIGIN=ubuntu-ts-01.example.ts.net ./oc.sh config openclaw
 ```
 
 ## Ubuntu 24.04 Fallback
@@ -166,7 +175,7 @@ That command creates or patches `~/.openclaw/openclaw.json` with:
 - Gateway bind mode `lan`, for container bridge networking behind host-loopback Podman port publishing.
 - A persistent CDP browser profile at `http://127.0.0.1:9222`.
 - A LiteLLM model provider at `http://127.0.0.1:4000`.
-- The default primary model `litellm/github_copilot/gpt-4`.
+- The default primary model `litellm/github_copilot/gpt-5.4`.
 
 Other config subcommands can be run independently:
 
@@ -177,12 +186,15 @@ Other config subcommands can be run independently:
 
 ## LiteLLM Subscription Login
 
-The default LiteLLM config uses subscription-backed OAuth/device-code providers:
+The default LiteLLM config uses GitHub Copilot OAuth/device-code models:
 
 ```text
-github_copilot/gpt-4
-chatgpt/gpt-5.4
+github_copilot/gpt-5.4
+github_copilot/gpt-5.5
+github_copilot/claude-opus-4.6
 ```
+
+ChatGPT subscription models in `config/litellm/config.yaml` are commented out by default. Uncomment only the models available to your subscription, or replace/add API-key-backed LiteLLM providers and put the required env vars in `~/.config/litellm/litellm.env`. If you change exposed `model_name` values, update the matching OpenClaw LiteLLM model IDs and `agents.defaults.model.primary` in `~/.openclaw/openclaw.json`.
 
 Watch LiteLLM logs:
 
@@ -197,12 +209,12 @@ set -a
 source ~/.config/litellm/litellm.env
 set +a
 
-curl -s http://127.0.0.1:4000/v1/chat/completions \
+curl -s http://127.0.0.1:4000/v1/responses \
   -H "Authorization: Bearer ${LITELLM_MASTER_KEY}" \
   -H 'Content-Type: application/json' \
   -d '{
-    "model": "github_copilot/gpt-4",
-    "messages": [{"role": "user", "content": "Say hello from GitHub Copilot through LiteLLM."}]
+    "model": "github_copilot/gpt-5.4",
+    "input": "Say hello from GitHub Copilot through LiteLLM."
   }' | jq .
 ```
 
@@ -210,7 +222,7 @@ Token caches are stored under:
 
 ```text
 ~/.local/share/litellm/github_copilot
-~/.local/share/litellm/chatgpt
+~/.local/share/litellm/chatgpt     # only used if ChatGPT models are enabled
 ```
 
 Treat those directories as secrets.
@@ -231,7 +243,7 @@ Refresh SearXNG config:
 ./oc.sh restart searxng
 ```
 
-`./oc.sh config searxng` enables OpenClaw's bundled SearXNG plugin and points it at the local sidecar.
+`./oc.sh config searxng` installs the bundled SearXNG settings template when missing, enables OpenClaw's bundled SearXNG plugin, and points it at the local sidecar.
 
 ## Persistent Browser
 
@@ -258,8 +270,7 @@ Then run as `openclaw` from the repo checkout:
 DISCORD_BOT_TOKEN='YOUR_BOT_TOKEN' \
   ./oc.sh config discord \
     --dm-user YOUR_DISCORD_USER_ID \
-    --guild YOUR_DISCORD_GUILD_ID \
-    --require-mention false
+    --guild YOUR_DISCORD_GUILD_ID
 ```
 
 Restart the gateway after changing Discord settings:
@@ -268,7 +279,9 @@ Restart the gateway after changing Discord settings:
 ./oc.sh restart gateway
 ```
 
-The raw bot token is stored in `~/.config/openclaw-gateway/gateway.env`. `~/.openclaw/openclaw.json` stores a SecretRef to `DISCORD_BOT_TOKEN` plus the Discord access policy.
+The raw bot token is stored in `~/.config/openclaw-gateway/gateway.env`. `~/.openclaw/openclaw.json` stores a SecretRef to `DISCORD_BOT_TOKEN` plus the Discord access policy. Discord thread bindings are enabled when Discord config is applied.
+
+Guild messages require a bot mention by default. Add `--require-mention false` without `--channel-id` to disable mention gating for the whole guild, or with `--channel-id` to disable it only for the listed channels.
 
 For multiple Discord bots in one gateway, configure each bot as a separate Discord account and optionally bind it to a separate agent:
 
@@ -316,7 +329,7 @@ For development or testing under a non-`openclaw` user, pass `--allow-current-us
 
 ## Pinned Images
 
-Deployment assets use tag-plus-digest image references instead of mutable `latest` tags. Print the pinned image inventory with:
+`oc.sh` owns the tag-plus-digest image references and renders them into the installed Quadlet and fallback systemd assets. Print the pinned image inventory with:
 
 ```bash
 ./oc.sh images
@@ -392,7 +405,7 @@ Also remove generated config, credentials, browser data, and LiteLLM token cache
 - Do not expose LiteLLM port `4000` beyond host loopback unless you have explicit auth, TLS, and network policy.
 - Do not expose SearXNG port `8080` beyond host loopback unless you have reviewed production hardening and abuse controls.
 - Do not commit real `openclaw.json` files if they contain auth profiles, tokens, API keys, or local machine secrets.
-- Do not commit `~/.config/openclaw-gateway/gateway.env`; it contains runtime secrets such as `DISCORD_BOT_TOKEN`, `LITELLM_API_KEY`, and `SEARXNG_BASE_URL`.
+- Do not commit `~/.config/openclaw-gateway/gateway.env`; it contains runtime secrets such as `OPENCLAW_GATEWAY_TOKEN`, `DISCORD_BOT_TOKEN`, `LITELLM_API_KEY`, and `SEARXNG_BASE_URL`.
 - Do not commit `~/.config/litellm/litellm.env`; it contains the LiteLLM master key.
 - Do not commit `~/.config/searxng/settings.yml`; it contains the generated SearXNG `server.secret_key`.
 - Do not commit `~/.local/share/litellm/github_copilot`; it contains OAuth-derived Copilot credentials.

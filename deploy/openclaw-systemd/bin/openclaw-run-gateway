@@ -13,4 +13,4 @@ exec /usr/bin/podman run --rm \
   -e NO_COLOR=1 \
   -v "${HOME}/.openclaw:/home/node/.openclaw:Z" \
   -v "${HOME}/.openclaw/workspace:/home/node/.openclaw/workspace:Z" \
-  ghcr.io/openclaw/openclaw:2026.4.24@sha256:7c4370ff8777555d4c9fe5ab821aaaad7c87188d389a6cf761270725d96ec3e9
+  __OPENCLAW_GATEWAY_IMAGE__

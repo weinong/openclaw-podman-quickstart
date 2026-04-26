@@ -2,7 +2,7 @@
 
 This guide runs LiteLLM as a sidecar in the same rootless Podman pod as OpenClaw and preconfigures OpenClaw to use it as the default model provider.
 
-The default model in this repo is **GitHub Copilot via LiteLLM**, and the same LiteLLM sidecar also exposes **ChatGPT subscription models**. LiteLLM manages OAuth device-code flows for both providers and caches the resulting tokens under the `openclaw` user's persistent data directory.
+The default model in this repo is **GitHub Copilot via LiteLLM**. ChatGPT subscription models are included as commented examples and should be enabled only when they match the user's subscription or API-key configuration. LiteLLM manages OAuth device-code flows for enabled subscription providers and caches the resulting tokens under the `openclaw` user's persistent data directory.
 
 ## Target Architecture
 
@@ -13,7 +13,7 @@ Podman pod: openclaw
 ├── openclaw-litellm
 │   ├── listens on http://127.0.0.1:4000 inside the pod
 │   ├── manages GitHub Copilot OAuth token cache under ~/.local/share/litellm/github_copilot
-│   └── manages ChatGPT OAuth token cache under ~/.local/share/litellm/chatgpt
+│   └── can manage ChatGPT OAuth token cache under ~/.local/share/litellm/chatgpt
 └── openclaw-browser
     └── persistent CDP endpoint on http://127.0.0.1:9222
 ```
@@ -40,7 +40,7 @@ The installer copies or creates:
 
 ## Configure LiteLLM Gateway Auth
 
-No upstream API key is required for the default GitHub Copilot and ChatGPT provider config.
+No upstream API key is required for the default GitHub Copilot provider config.
 
 LiteLLM still needs a local master key so OpenClaw can authenticate to the LiteLLM proxy. The one-shot installer generates this automatically:
 
@@ -83,12 +83,12 @@ set -a
 source ~/.config/litellm/litellm.env
 set +a
 
-curl -s http://127.0.0.1:4000/v1/chat/completions \
+curl -s http://127.0.0.1:4000/v1/responses \
   -H "Authorization: Bearer ${LITELLM_MASTER_KEY}" \
   -H 'Content-Type: application/json' \
   -d '{
-    "model": "github_copilot/gpt-4",
-    "messages": [{"role": "user", "content": "Say hello from GitHub Copilot through LiteLLM."}]
+    "model": "github_copilot/gpt-5.4",
+    "input": "Say hello from GitHub Copilot through LiteLLM."
   }' | jq .
 ```
 
@@ -98,7 +98,9 @@ On the first request, LiteLLM should print a GitHub device-code login URL/code i
 ~/.local/share/litellm/github_copilot
 ```
 
-## ChatGPT OAuth Device-Code Login
+## Optional ChatGPT OAuth Device-Code Login
+
+Uncomment a ChatGPT model in `config/litellm/config.yaml` or `~/.config/litellm/config.yaml` only if it is available to your subscription, then restart LiteLLM.
 
 Trigger the first ChatGPT model request:
 
@@ -124,21 +126,17 @@ On the first request, LiteLLM should print a ChatGPT device-code login URL/code 
 
 ## Default LiteLLM Models
 
-The repo's default `config/litellm/config.yaml` exposes these model names:
+The repo's default `config/litellm/config.yaml` exposes these active model names:
 
 ```text
-github_copilot/gpt-4
-github_copilot/gpt-5.1-codex
-github_copilot/text-embedding-3-small
-chatgpt/gpt-5.4
-chatgpt/gpt-5.4-pro
-chatgpt/gpt-5.3-codex
-chatgpt/gpt-5.3-codex-spark
-chatgpt/gpt-5.3-instant
-chatgpt/gpt-5.3-chat-latest
+github_copilot/gpt-5.4
+github_copilot/gpt-5.5
+github_copilot/claude-opus-4.6
 ```
 
-OpenClaw is preconfigured to use `litellm/github_copilot/gpt-4` as the default primary model. ChatGPT models are available through the same `litellm` provider and can be selected explicitly by model ID.
+ChatGPT subscription models are present as commented examples. Uncomment only the models your subscription supports, or add API-key-backed provider entries and the corresponding env vars in `~/.config/litellm/litellm.env`.
+
+OpenClaw is preconfigured to use `litellm/github_copilot/gpt-5.4` as the default primary model. If you change LiteLLM `model_name` values, update OpenClaw's LiteLLM model IDs and `agents.defaults.model.primary` to match.
 
 ## OpenClaw Config
 
