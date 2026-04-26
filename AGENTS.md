@@ -33,7 +33,7 @@ Use channel-specific upstream docs when relevant, such as `https://docs.openclaw
 
 ## `oc.sh` Subcommands
 
-When adding or changing an `oc.sh` subcommand, make sure the subcommand supports both `-h` and `--help`. Help output must work without requiring the `openclaw` user, user systemd, Podman, or other runtime services.
+When adding or changing an `oc.sh` subcommand, make sure the subcommand supports both `-h` and `--help`. When adding, removing, renaming, or aliasing command flags, update the relevant help text in the same change so `-h`/`--help` reflects the parser exactly. Help output must work without requiring the `openclaw` user, user systemd, Podman, or other runtime services.
 
 ## Container Image Pins
 

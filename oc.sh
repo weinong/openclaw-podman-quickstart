@@ -41,14 +41,13 @@ usage() {
   cat <<'EOF'
 Usage:
   ./oc.sh install [fallback|quadlet] [--start-gateway] [--allow-current-user]
-  ./oc.sh uninstall [--purge --yes] [--allow-current-user]
+  ./oc.sh uninstall [--purge --yes|-y] [--allow-current-user]
   ./oc.sh init [--allow-current-user]
-  ./oc.sh config openclaw|litellm|searxng [--allow-current-user]
-  DISCORD_BOT_TOKEN='...' ./oc.sh config discord [options]
-  ./oc.sh start|stop|restart|status [service]
-  ./oc.sh logs [service]
+  ./oc.sh config file|get|set|unset|openclaw|litellm|searxng|discord [options]
+  ./oc.sh start|stop|restart|status [service] [--allow-current-user]
+  ./oc.sh logs [service] [--allow-current-user]
   ./oc.sh images [--json]
-  ./oc.sh doctor
+  ./oc.sh doctor [--allow-current-user]
 
 Install:
   install                 One-shot install. Auto-detects Quadlet .pod support.
@@ -56,8 +55,8 @@ Install:
   install quadlet         Install Quadlet units for newer Podman.
 
 Uninstall:
-  uninstall               Stop services and remove installed units/helpers only.
-  uninstall --purge --yes Also remove generated config, credentials, and data.
+  uninstall                  Stop services and remove installed units/helpers only.
+  uninstall --purge --yes|-y Also remove generated config, credentials, and data.
 
 Images:
   images                  Print pinned image tags and sha256 manifest digests.
@@ -74,14 +73,15 @@ Services:
 
 Discord config options:
   --dm-user ID            Allowed Discord DM user. Repeatable.
-  --guild ID              Allowed Discord guild/server. Repeatable.
+  --guild, --server ID    Allowed Discord guild/server. Repeatable.
   --account ID            Discord account/bot id. Default: default.
   --token-env ENV_VAR     Env var used by SecretRef. Default: DISCORD_BOT_TOKEN
                            for default account, DISCORD_BOT_TOKEN_<ACCOUNT> otherwise.
   --agent ID              Bind this Discord account to an agent id.
   --workspace PATH        Workspace for --agent. Default: ~/.openclaw/workspace-<agent>.
   --guild-user ID         Allowed guild user. Defaults to --dm-user values.
-  --channel-id ID         Allowed guild channel. Repeatable.
+  --channel, --channel-id ID
+                           Allowed guild channel. Repeatable.
   --require-mention bool  true or false. Default: false.
 
 Environment:
@@ -109,7 +109,7 @@ usage_config() {
 Usage:
   ./oc.sh config file [--allow-current-user]
   ./oc.sh config get <path> [--json] [--allow-current-user]
-  ./oc.sh config set <path> <value> [--strict-json] [--merge] [--replace] [--allow-current-user]
+  ./oc.sh config set <path> <value> [--strict-json|--json] [--merge] [--replace] [--allow-current-user]
   ./oc.sh config unset <path> [--allow-current-user]
   ./oc.sh config openclaw [--allow-current-user]
   ./oc.sh config litellm [--allow-current-user]
@@ -128,7 +128,7 @@ Paths use dot and array-index notation, for example:
   agents.list[0].tools.exec.node
 
 Values are parsed as JSON when possible, otherwise as strings. Use
---strict-json to require JSON parsing. Use --merge to merge object values
+--strict-json or --json to require JSON parsing. Use --merge to merge object values
 with the existing object at the path. --replace is accepted for parity with
 OpenClaw and is the default behavior for non-merge writes.
 
@@ -164,10 +164,40 @@ Notes:
 
 Discord options:
   --dm-user ID            Allowed Discord DM user. Repeatable.
-  --guild ID              Allowed Discord guild/server. Repeatable.
+  --guild, --server ID    Allowed Discord guild/server. Repeatable.
+  --account ID            Discord account/bot id. Default: default.
+  --token-env ENV_VAR     Env var used by SecretRef. Default: DISCORD_BOT_TOKEN
+                           for default account, DISCORD_BOT_TOKEN_<ACCOUNT> otherwise.
+  --agent ID              Bind this Discord account to an agent id.
+  --workspace PATH        Workspace for --agent. Default: ~/.openclaw/workspace-<agent>.
   --guild-user ID         Allowed guild user. Defaults to --dm-user values.
-  --channel-id ID         Allowed guild channel. Repeatable.
+  --channel, --channel-id ID
+                           Allowed guild channel. Repeatable.
   --require-mention bool  true or false. Default: false.
+EOF
+}
+
+usage_config_discord() {
+  cat <<'EOF'
+Usage:
+  DISCORD_BOT_TOKEN='...' ./oc.sh config discord --dm-user ID --guild ID [options] [--allow-current-user]
+
+Patch ~/.openclaw/openclaw.json with a Discord SecretRef, account allowlists,
+and optional agent binding. Writes the bot token into the gateway env file.
+
+Options:
+  --dm-user ID            Allowed Discord DM user. Repeatable. Required.
+  --guild, --server ID    Allowed Discord guild/server. Repeatable. Required.
+  --account ID            Discord account/bot id. Default: default.
+  --token-env ENV_VAR     Env var used by SecretRef. Default: DISCORD_BOT_TOKEN
+                           for default account, DISCORD_BOT_TOKEN_<ACCOUNT> otherwise.
+  --agent ID              Bind this Discord account to an agent id.
+  --workspace PATH        Workspace for --agent. Default: ~/.openclaw/workspace-<agent>.
+  --guild-user ID         Allowed guild user. Defaults to --dm-user values.
+  --channel, --channel-id ID
+                           Allowed guild channel. Repeatable.
+  --require-mention bool  true or false. Default: false.
+  --allow-current-user    Allow running as a non-openclaw, non-root user.
 EOF
 }
 
@@ -1055,6 +1085,8 @@ main() {
       case "${1:-}" in -h|--help) usage_init; exit 0 ;; esac
       parse_common_flags "$@"
       assert_openclaw_user "${allow_current_user}"
+      set -- "${remaining_args[@]}"
+      [[ $# -eq 0 ]] || die "init does not accept extra arguments: $*"
       ensure_user_dirs
       echo "Initialized OpenClaw directories under ${HOME}."
       ;;
@@ -1063,7 +1095,16 @@ main() {
       case "${1:-}" in -h|--help|"") usage_config; exit 0 ;; esac
       local config_target="${1:-}"
       shift
-      case "${1:-}" in -h|--help) usage_config; exit 0 ;; esac
+      case "${1:-}" in
+        -h|--help)
+          if [[ "${config_target}" == "discord" ]]; then
+            usage_config_discord
+          else
+            usage_config
+          fi
+          exit 0
+          ;;
+      esac
       parse_common_flags "$@"
       assert_openclaw_user "${allow_current_user}"
       set -- "${remaining_args[@]}"
@@ -1169,6 +1210,8 @@ main() {
       done
       parse_common_flags "${args[@]}"
       assert_openclaw_user "${allow_current_user}"
+      set -- "${remaining_args[@]}"
+      [[ $# -eq 0 ]] || die "install does not accept extra arguments: $*"
       need_cmd jq
       need_cmd podman
       need_cmd systemctl
@@ -1208,6 +1251,8 @@ main() {
       done
       parse_common_flags "${args[@]}"
       assert_openclaw_user "${allow_current_user}"
+      set -- "${remaining_args[@]}"
+      [[ $# -eq 0 ]] || die "uninstall does not accept extra arguments: $*"
       uninstall_openclaw "${purge}" "${yes}"
       ;;
     images)
@@ -1226,6 +1271,7 @@ main() {
       parse_common_flags "$@"
       assert_openclaw_user "${allow_current_user}"
       set -- "${remaining_args[@]}"
+      [[ $# -le 1 ]] || die "${action} accepts at most one service argument"
       mapfile -t selected_services < <(service_name "${1:-all}")
       if [[ "${action}" == "status" ]]; then
         systemctl_user status "${selected_services[@]}" --no-pager
@@ -1239,6 +1285,7 @@ main() {
       parse_common_flags "$@"
       assert_openclaw_user "${allow_current_user}"
       set -- "${remaining_args[@]}"
+      [[ $# -le 1 ]] || die "logs accepts at most one service argument"
       mapfile -t selected_services < <(service_name "${1:-gateway}")
       require_user_systemd_bus
       journalctl --user -u "${selected_services[@]}" -f
@@ -1248,6 +1295,8 @@ main() {
       case "${1:-}" in -h|--help) usage_doctor; exit 0 ;; esac
       parse_common_flags "$@"
       assert_openclaw_user "${allow_current_user}"
+      set -- "${remaining_args[@]}"
+      [[ $# -eq 0 ]] || die "doctor does not accept extra arguments: $*"
       doctor
       ;;
     *)
