@@ -7,7 +7,7 @@ This guide configures OpenClaw's Discord channel with:
 - guild/server allowlist
 - optional guild channel allowlist
 - optional guild user allowlist
-- `requireMention: false` for private servers where the bot should respond without being @mentioned
+- mention gating enabled by default, with optional guild or channel-level overrides for private workspaces
 
 The raw token is not stored in `openclaw.json`; only a SecretRef to `DISCORD_BOT_TOKEN` is stored there.
 
@@ -39,8 +39,7 @@ Run from the repo checkout as the `openclaw` user:
 DISCORD_BOT_TOKEN='YOUR_BOT_TOKEN' \
   ./oc.sh config discord \
     --dm-user YOUR_DISCORD_USER_ID \
-    --guild YOUR_DISCORD_GUILD_ID \
-    --require-mention false
+    --guild YOUR_DISCORD_GUILD_ID
 ```
 
 For multiple allowed DM users:
@@ -50,8 +49,7 @@ DISCORD_BOT_TOKEN='YOUR_BOT_TOKEN' \
   ./oc.sh config discord \
     --dm-user USER_ID_1 \
     --dm-user USER_ID_2 \
-    --guild YOUR_DISCORD_GUILD_ID \
-    --require-mention false
+    --guild YOUR_DISCORD_GUILD_ID
 ```
 
 For a different guild user allowlist than the DM allowlist:
@@ -61,7 +59,16 @@ DISCORD_BOT_TOKEN='YOUR_BOT_TOKEN' \
   ./oc.sh config discord \
     --dm-user YOUR_DISCORD_USER_ID \
     --guild YOUR_DISCORD_GUILD_ID \
-    --guild-user ALLOWED_GUILD_USER_ID \
+    --guild-user ALLOWED_GUILD_USER_ID
+```
+
+To let the bot respond anywhere in the guild without being mentioned, set `--require-mention false` without channel IDs:
+
+```bash
+DISCORD_BOT_TOKEN='YOUR_BOT_TOKEN' \
+  ./oc.sh config discord \
+    --dm-user YOUR_DISCORD_USER_ID \
+    --guild YOUR_DISCORD_GUILD_ID \
     --require-mention false
 ```
 
@@ -76,7 +83,7 @@ DISCORD_BOT_TOKEN='YOUR_BOT_TOKEN' \
     --require-mention false
 ```
 
-If `--channel-id` is omitted, the script allowlists the guild without adding a channel restriction. If one or more `--channel-id` values are set, OpenClaw restricts that guild to those channels.
+If `--channel-id` is omitted, the script allowlists the guild without adding a channel restriction. If one or more `--channel-id` values are set, OpenClaw restricts that guild to those channels and applies `--require-mention` only at the channel level. The guild-level `requireMention` remains `true`.
 
 ## Multiple Discord Bots
 
@@ -130,7 +137,7 @@ The script patches the Discord channel block into `openclaw.json`:
           "groupPolicy": "allowlist",
           "guilds": {
             "YOUR_DISCORD_GUILD_ID": {
-              "requireMention": false,
+              "requireMention": true,
               "users": ["YOUR_DISCORD_USER_ID"]
             }
           }
@@ -191,5 +198,6 @@ sed 's/DISCORD_BOT_TOKEN=.*/DISCORD_BOT_TOKEN=<redacted>/' ~/.config/openclaw-ga
 - `groupPolicy: "allowlist"` restricts guild/server handling to configured guild IDs.
 - If a guild has no `channels` block, messages from the allowlisted users are allowed anywhere in that guild where the bot has Discord permissions.
 - If a guild has a `channels` block, only listed channels are allowed.
-- `requireMention: false` allows the bot to respond in that guild or channel without being @mentioned. This is best for private servers where the bot is expected to participate freely.
-- For shared or busy servers, prefer `requireMention: true` to reduce accidental bot responses.
+- `requireMention: true` is the default and reduces accidental bot responses in shared or busy servers.
+- `--require-mention false` without `--channel-id` allows the bot to respond anywhere in the guild without being @mentioned.
+- `--require-mention false` with `--channel-id` applies only to the listed channel entries; the guild stays mention-gated.

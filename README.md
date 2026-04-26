@@ -261,8 +261,7 @@ Then run as `openclaw` from the repo checkout:
 DISCORD_BOT_TOKEN='YOUR_BOT_TOKEN' \
   ./oc.sh config discord \
     --dm-user YOUR_DISCORD_USER_ID \
-    --guild YOUR_DISCORD_GUILD_ID \
-    --require-mention false
+    --guild YOUR_DISCORD_GUILD_ID
 ```
 
 Restart the gateway after changing Discord settings:
@@ -272,6 +271,8 @@ Restart the gateway after changing Discord settings:
 ```
 
 The raw bot token is stored in `~/.config/openclaw-gateway/gateway.env`. `~/.openclaw/openclaw.json` stores a SecretRef to `DISCORD_BOT_TOKEN` plus the Discord access policy.
+
+Guild messages require a bot mention by default. Add `--require-mention false` without `--channel-id` to disable mention gating for the whole guild, or with `--channel-id` to disable it only for the listed channels.
 
 For multiple Discord bots in one gateway, configure each bot as a separate Discord account and optionally bind it to a separate agent:
 

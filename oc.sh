@@ -82,7 +82,8 @@ Discord config options:
   --guild-user ID         Allowed guild user. Defaults to --dm-user values.
   --channel, --channel-id ID
                            Allowed guild channel. Repeatable.
-  --require-mention bool  true or false. Default: false.
+  --require-mention bool  true or false. Default: true. With --channel-id,
+                           applies to listed channels only.
 
 Environment:
   LITELLM_MASTER_KEY      Optional LiteLLM master key.
@@ -173,7 +174,8 @@ Discord options:
   --guild-user ID         Allowed guild user. Defaults to --dm-user values.
   --channel, --channel-id ID
                            Allowed guild channel. Repeatable.
-  --require-mention bool  true or false. Default: false.
+  --require-mention bool  true or false. Default: true. With --channel-id,
+                           applies to listed channels only.
 EOF
 }
 
@@ -196,7 +198,8 @@ Options:
   --guild-user ID         Allowed guild user. Defaults to --dm-user values.
   --channel, --channel-id ID
                            Allowed guild channel. Repeatable.
-  --require-mention bool  true or false. Default: false.
+  --require-mention bool  true or false. Default: true. With --channel-id,
+                           applies to listed channels only.
   --allow-current-user    Allow running as a non-openclaw, non-root user.
 EOF
 }
@@ -720,7 +723,7 @@ config_discord() {
   ensure_user_dirs
   ensure_openclaw_config_file
 
-  local require_mention="false"
+  local require_mention="true"
   local account_id="default"
   local token_env=""
   local agent_id=""
@@ -832,7 +835,11 @@ config_discord() {
   fi
 
   for guild_id in "${guild_ids[@]}"; do
-    config_set_json "channels.discord.accounts.${account_id}.guilds.${guild_id}.requireMention" "${require_mention}"
+    if [[ "${#channel_ids[@]}" -eq 0 ]]; then
+      config_set_json "channels.discord.accounts.${account_id}.guilds.${guild_id}.requireMention" "${require_mention}"
+    else
+      config_set_json "channels.discord.accounts.${account_id}.guilds.${guild_id}.requireMention" "true"
+    fi
     config_set_json "channels.discord.accounts.${account_id}.guilds.${guild_id}.users" "${guild_users_json}"
     for channel_id in "${channel_ids[@]}"; do
       config_set_json "channels.discord.accounts.${account_id}.guilds.${guild_id}.channels.${channel_id}.allow" "true"
