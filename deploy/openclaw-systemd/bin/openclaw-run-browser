@@ -1,0 +1,9 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+exec /usr/bin/podman run --rm \
+  --name openclaw-browser \
+  --pod openclaw \
+  --shm-size=2g \
+  -v "${HOME}/.local/share/openclaw-browser:/data:Z" \
+  docker.io/chromedp/headless-shell:latest
