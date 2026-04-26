@@ -331,7 +331,9 @@ searxng docker.io/searxng/searxng 2026.4.24-a7ac696b4 sha256:c9100c29c14a77d5289
 
 ## Uninstall
 
-Remove installed services, Quadlet files, fallback systemd units, and copied helper scripts while keeping generated config and data:
+See [docs/uninstall.md](docs/uninstall.md) for cleanup details.
+
+Remove installed services, Quadlet files, fallback systemd units, copied helper scripts, containers, and the pod while keeping generated config and data:
 
 ```bash
 ./oc.sh uninstall
@@ -370,6 +372,13 @@ Also remove generated config, credentials, browser data, and LiteLLM token cache
 │       ├── openclaw-gateway.service
 │       └── bin/
 ├── docs/
+│   ├── bootstrap.md
+│   ├── discord-bootstrap.md
+│   ├── litellm-bootstrap.md
+│   ├── podman-49-fallback.md
+│   ├── searxng-bootstrap.md
+│   ├── subscription-cli-auth.md
+│   └── uninstall.md
 ├── oc.sh
 └── README.md
 ```
@@ -395,3 +404,4 @@ Also remove generated config, credentials, browser data, and LiteLLM token cache
 - [Bootstrap SearXNG for OpenClaw](docs/searxng-bootstrap.md)
 - [Bootstrap Discord for OpenClaw](docs/discord-bootstrap.md)
 - [Codex and Copilot CLI auth](docs/subscription-cli-auth.md)
+- [Uninstall OpenClaw Podman quickstart](docs/uninstall.md)
