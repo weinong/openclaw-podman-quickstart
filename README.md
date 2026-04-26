@@ -129,7 +129,18 @@ curl -fsS http://127.0.0.1:8080/ >/dev/null && echo "SearXNG OK"
 
 ## OpenClaw Config
 
-OpenClaw configuration is managed as its own reusable subcommand:
+OpenClaw JSON configuration is managed through reusable JSON-path subcommands:
+
+```bash
+./oc.sh config file
+./oc.sh config get browser.profiles.default.cdpUrl
+./oc.sh config set browser.enabled true --strict-json
+./oc.sh config unset browser.profiles.default.driver
+```
+
+`config set` creates `~/.openclaw/openclaw.json` as `{}` if it does not already exist. Paths use dot and array-index notation like `agents.list[0].tools.exec.node`. Values are parsed as JSON when possible; otherwise they are written as strings. Use `--strict-json` to require JSON parsing.
+
+Feature-specific config commands remain available and use `config set`/`unset` internally:
 
 ```bash
 ./oc.sh config openclaw
@@ -251,6 +262,10 @@ The bot token is stored in `~/.config/openclaw-gateway/gateway.env`. The access 
 ./oc.sh uninstall
 ./oc.sh uninstall --purge --yes
 ./oc.sh init
+./oc.sh config file
+./oc.sh config get browser.enabled --json
+./oc.sh config set browser.enabled true --strict-json
+./oc.sh config unset browser.profiles.default.driver
 ./oc.sh config openclaw
 ./oc.sh config litellm
 ./oc.sh config searxng

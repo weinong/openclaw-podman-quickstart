@@ -97,10 +97,30 @@ EOF
 usage_config() {
   cat <<'EOF'
 Usage:
+  ./oc.sh config file [--allow-current-user]
+  ./oc.sh config get <path> [--json] [--allow-current-user]
+  ./oc.sh config set <path> <value> [--strict-json] [--merge] [--replace] [--allow-current-user]
+  ./oc.sh config unset <path> [--allow-current-user]
   ./oc.sh config openclaw [--allow-current-user]
   ./oc.sh config litellm [--allow-current-user]
   ./oc.sh config searxng [--allow-current-user]
   DISCORD_BOT_TOKEN='...' ./oc.sh config discord [options] [--allow-current-user]
+
+Generic config:
+  file                    Print the active OpenClaw config file path.
+  get <path>              Read a value from ~/.openclaw/openclaw.json.
+  set <path> <value>      Write a JSON-path value, creating the file if needed.
+  unset <path>            Delete a JSON-path value.
+
+Paths use dot and array-index notation, for example:
+  browser.enabled
+  browser.profiles.default.cdpUrl
+  agents.list[0].tools.exec.node
+
+Values are parsed as JSON when possible, otherwise as strings. Use
+--strict-json to require JSON parsing. Use --merge to merge object values
+with the existing object at the path. --replace is accepted for parity with
+OpenClaw and is the default behavior for non-merge writes.
 
 Targets:
   openclaw
@@ -127,6 +147,7 @@ Targets:
     Patches ~/.openclaw/openclaw.json with Discord DM/guild allowlists.
 
 Notes:
+  Feature config commands use config set/unset internally.
   Config commands do not install systemd units or start containers.
   Without --allow-current-user, config commands must run as user openclaw.
   --allow-current-user writes to the current user's HOME, not /home/openclaw.
@@ -346,45 +367,130 @@ ensure_openclaw_config_file() {
   fi
 }
 
-config_openclaw() {
+jq_path_expr() {
+  local path="$1"
+  [[ -n "${path}" ]] || die "config path is required"
+
+  CONFIG_PATH="${path}" jq -cn '
+    env.CONFIG_PATH
+    | [scan("[^.\\[\\]]+|\\[[0-9]+\\]")]
+    | map(if startswith("[") then (.[1:-1] | tonumber) else . end)
+  '
+}
+
+json_value_expr() {
+  local value="$1"
+  local strict_json="$2"
+  local parsed_json=""
+
+  parsed_json="$(jq -c . 2>/dev/null <<<"${value}" || true)"
+  if [[ -n "${parsed_json}" ]]; then
+    printf '%s\n' "${parsed_json}"
+  elif [[ "${strict_json}" == "true" ]]; then
+    die "value is not valid JSON: ${value}"
+  else
+    jq -Rn --arg value "${value}" '$value'
+  fi
+}
+
+config_file_cmd() {
+  printf '%s\n' "${openclaw_config}"
+}
+
+config_get_path() {
   need_cmd jq
+  local path="$1"
+  local output_json="${2:-false}"
+  [[ -f "${openclaw_config}" ]] || die "OpenClaw config not found: ${openclaw_config}"
+
+  local path_json
+  path_json="$(jq_path_expr "${path}")"
+
+  if [[ "${output_json}" == "true" ]]; then
+    jq --argjson path "${path_json}" 'getpath($path)' "${openclaw_config}"
+  else
+    jq -r --argjson path "${path_json}" 'getpath($path) | if type == "string" then . else tojson end' "${openclaw_config}"
+  fi
+}
+
+config_set_path() {
+  need_cmd jq
+  local path="$1"
+  local value="$2"
+  local strict_json="${3:-false}"
+  local merge="${4:-false}"
+
   ensure_openclaw_config_file
 
-  local tmp
+  local path_json value_json tmp
+  path_json="$(jq_path_expr "${path}")"
+  value_json="$(json_value_expr "${value}" "${strict_json}")"
   tmp="$(mktemp)"
-  jq '
-    .browser.enabled = true |
-    .browser.defaultProfile = "default" |
-    .browser.profiles.default.cdpUrl = "http://127.0.0.1:9222" |
-    .browser.profiles.default.color = "#FF4500" |
-    del(.browser.profiles.default.driver) |
-    .models.providers.litellm = {
-      baseUrl: "http://127.0.0.1:4000",
-      apiKey: "${LITELLM_API_KEY}",
-      api: "openai-completions",
-      models: [
-        {
-          id: "github_copilot/gpt-4",
-          name: "GitHub Copilot GPT-4 via LiteLLM",
-          reasoning: false,
-          input: ["text"],
-          contextWindow: 128000,
-          maxTokens: 8192
-        },
-        {
-          id: "chatgpt/gpt-5.4",
-          name: "ChatGPT GPT-5.4 via LiteLLM",
-          reasoning: true,
-          input: ["text", "image"],
-          contextWindow: 128000,
-          maxTokens: 32768
-        }
-      ]
-    } |
-    .agents.defaults.model.primary = "litellm/github_copilot/gpt-4"
-  ' "${openclaw_config}" > "${tmp}"
+
+  if [[ "${merge}" == "true" ]]; then
+    jq --argjson path "${path_json}" --argjson value "${value_json}" '
+      if ($value | type) != "object" then
+        error("--merge requires an object value")
+      else
+        setpath($path; ((getpath($path) // {}) + $value))
+      end
+    ' "${openclaw_config}" > "${tmp}"
+  else
+    jq --argjson path "${path_json}" --argjson value "${value_json}" 'setpath($path; $value)' "${openclaw_config}" > "${tmp}"
+  fi
+
   install -m 0600 "${tmp}" "${openclaw_config}"
   rm -f "${tmp}"
+}
+
+config_unset_path() {
+  need_cmd jq
+  local path="$1"
+  ensure_openclaw_config_file
+
+  local path_json tmp
+  path_json="$(jq_path_expr "${path}")"
+  tmp="$(mktemp)"
+  jq --argjson path "${path_json}" 'delpaths([$path])' "${openclaw_config}" > "${tmp}"
+  install -m 0600 "${tmp}" "${openclaw_config}"
+  rm -f "${tmp}"
+}
+
+config_set_json() {
+  config_set_path "$1" "$2" true "${3:-false}"
+}
+
+config_openclaw() {
+  need_cmd jq
+  config_set_json "browser.enabled" "true"
+  config_set_path "browser.defaultProfile" "default"
+  config_set_path "browser.profiles.default.cdpUrl" "http://127.0.0.1:9222"
+  config_set_path "browser.profiles.default.color" "#FF4500"
+  config_unset_path "browser.profiles.default.driver"
+  config_set_json "models.providers.litellm" '{
+    "baseUrl": "http://127.0.0.1:4000",
+    "apiKey": "${LITELLM_API_KEY}",
+    "api": "openai-completions",
+    "models": [
+      {
+        "id": "github_copilot/gpt-4",
+        "name": "GitHub Copilot GPT-4 via LiteLLM",
+        "reasoning": false,
+        "input": ["text"],
+        "contextWindow": 128000,
+        "maxTokens": 8192
+      },
+      {
+        "id": "chatgpt/gpt-5.4",
+        "name": "ChatGPT GPT-5.4 via LiteLLM",
+        "reasoning": true,
+        "input": ["text", "image"],
+        "contextWindow": 128000,
+        "maxTokens": 32768
+      }
+    ]
+  }'
+  config_set_path "agents.defaults.model.primary" "litellm/github_copilot/gpt-4"
 
   echo "OpenClaw config updated: ${openclaw_config}"
 }
@@ -474,19 +580,10 @@ EOF
 
   replace_env_value "${gateway_env}" "SEARXNG_BASE_URL" "${base_url}"
 
-  local tmp
-  tmp="$(mktemp)"
-  jq \
-    --arg baseUrl "${base_url}" \
-    --arg categories "${categories}" \
-    --arg language "${language}" '
-    .tools.web.search.provider = "searxng" |
-    .plugins.entries.searxng.config.webSearch.baseUrl = $baseUrl |
-    .plugins.entries.searxng.config.webSearch.categories = $categories |
-    .plugins.entries.searxng.config.webSearch.language = $language
-  ' "${openclaw_config}" > "${tmp}"
-  install -m 0600 "${tmp}" "${openclaw_config}"
-  rm -f "${tmp}"
+  config_set_path "tools.web.search.provider" "searxng"
+  config_set_path "plugins.entries.searxng.config.webSearch.baseUrl" "${base_url}"
+  config_set_path "plugins.entries.searxng.config.webSearch.categories" "${categories}"
+  config_set_path "plugins.entries.searxng.config.webSearch.language" "${language}"
 
   echo "SearXNG settings: ${settings_file}"
   echo "SearXNG URL: ${base_url}"
@@ -554,54 +651,25 @@ config_discord() {
     guild_users=("${dm_users[@]}")
   fi
 
-  local dm_json guild_users_json guild_ids_json channel_ids_json tmp
+  local dm_json guild_users_json guild_id channel_id
   dm_json="$(printf '%s\n' "${dm_users[@]}" | jq -R . | jq -s .)"
   guild_users_json="$(printf '%s\n' "${guild_users[@]}" | jq -R . | jq -s .)"
-  guild_ids_json="$(printf '%s\n' "${guild_ids[@]}" | jq -R . | jq -s .)"
-  channel_ids_json="$(printf '%s\n' "${channel_ids[@]}" | jq -R . | jq -s .)"
 
-  tmp="$(mktemp)"
-  jq \
-    --argjson dmUsers "${dm_json}" \
-    --argjson guildUsers "${guild_users_json}" \
-    --argjson guildIds "${guild_ids_json}" \
-    --argjson channelIds "${channel_ids_json}" \
-    --argjson requireMention "${require_mention}" '
-    .channels.discord.enabled = true |
-    .channels.discord.dmPolicy = "allowlist" |
-    .channels.discord.allowFrom = $dmUsers |
-    .channels.discord.groupPolicy = "allowlist" |
-    .channels.discord.guilds = (.channels.discord.guilds // {}) |
-    reduce $guildIds[] as $gid (
-      .;
-      .channels.discord.guilds[$gid] = (
-        (.channels.discord.guilds[$gid] // {}) as $existing |
-        (
-          $existing + {
-            requireMention: $requireMention,
-            users: $guildUsers
-          }
-          | if ($channelIds | length) > 0 then
-              .channels = (
-                ($existing.channels // {}) |
-                reduce $channelIds[] as $cid (
-                  .;
-                  .[$cid] = ((.[$cid] // {}) + {
-                    allow: true,
-                    requireMention: $requireMention
-                  })
-                )
-              )
-            else
-              .
-            end
-        )
-      )
-    ) |
-    del(.channels.discord.token)
-  ' "${openclaw_config}" > "${tmp}"
-  install -m 0600 "${tmp}" "${openclaw_config}"
-  rm -f "${tmp}"
+  config_set_json "channels.discord.enabled" "true"
+  config_set_path "channels.discord.dmPolicy" "allowlist"
+  config_set_json "channels.discord.allowFrom" "${dm_json}"
+  config_set_path "channels.discord.groupPolicy" "allowlist"
+  config_set_json "channels.discord.guilds" "{}" true
+
+  for guild_id in "${guild_ids[@]}"; do
+    config_set_json "channels.discord.guilds.${guild_id}.requireMention" "${require_mention}"
+    config_set_json "channels.discord.guilds.${guild_id}.users" "${guild_users_json}"
+    for channel_id in "${channel_ids[@]}"; do
+      config_set_json "channels.discord.guilds.${guild_id}.channels.${channel_id}.allow" "true"
+      config_set_json "channels.discord.guilds.${guild_id}.channels.${channel_id}.requireMention" "${require_mention}"
+    done
+  done
+  config_unset_path "channels.discord.token"
 
   echo "Discord config updated: ${openclaw_config}"
   echo "Discord token stored in: ${gateway_env}"
@@ -852,6 +920,76 @@ main() {
       assert_openclaw_user "${allow_current_user}"
       set -- "${remaining_args[@]}"
       case "${config_target}" in
+        file)
+          [[ $# -eq 0 ]] || die "config file does not accept extra arguments"
+          config_file_cmd
+          ;;
+        get)
+          local output_json="false"
+          local get_path=""
+          while [[ $# -gt 0 ]]; do
+            case "$1" in
+              --json)
+                output_json="true"
+                shift
+                ;;
+              *)
+                if [[ -z "${get_path}" ]]; then
+                  get_path="$1"
+                  shift
+                else
+                  die "config get accepts only one path"
+                fi
+                ;;
+            esac
+          done
+          [[ -n "${get_path}" ]] || die "config get requires a path"
+          config_get_path "${get_path}" "${output_json}"
+          ;;
+        set)
+          local strict_json="false"
+          local merge="false"
+          local set_path=""
+          local set_value=""
+          local have_set_path="false"
+          local have_set_value="false"
+          while [[ $# -gt 0 ]]; do
+            case "$1" in
+              --strict-json|--json)
+                strict_json="true"
+                shift
+                ;;
+              --merge)
+                merge="true"
+                shift
+                ;;
+              --replace)
+                shift
+                ;;
+              *)
+                if [[ "${have_set_path}" == "false" ]]; then
+                  set_path="$1"
+                  have_set_path="true"
+                elif [[ "${have_set_value}" == "false" ]]; then
+                  set_value="$1"
+                  have_set_value="true"
+                else
+                  die "config set accepts one path and one value"
+                fi
+                shift
+                ;;
+            esac
+          done
+          [[ "${have_set_path}" == "true" ]] || die "config set requires a path"
+          [[ "${have_set_value}" == "true" ]] || die "config set requires a value"
+          config_set_path "${set_path}" "${set_value}" "${strict_json}" "${merge}"
+          echo "Updated ${openclaw_config}: ${set_path}"
+          ;;
+        unset)
+          [[ $# -eq 1 ]] || die "config unset requires exactly one path"
+          config_unset_path "$1"
+          echo "Updated ${openclaw_config}: removed $1"
+          ;;
         openclaw) [[ $# -eq 0 ]] || die "config openclaw does not accept extra arguments"; config_openclaw ;;
         litellm) [[ $# -eq 0 ]] || die "config litellm does not accept extra arguments"; config_litellm ;;
         searxng) [[ $# -eq 0 ]] || die "config searxng does not accept extra arguments"; config_searxng ;;
