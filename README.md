@@ -16,7 +16,7 @@ This repo focuses on **bootstrap**, not snapshot/backup. It is meant to help you
   - a LiteLLM proxy sidecar
   - an optional OpenClaw gateway container skeleton
 - A minimal OpenClaw browser profile config pointing to the persistent CDP endpoint.
-- A LiteLLM provider config for OpenClaw, with the default OpenClaw model set to `litellm/github_copilot/gpt-4`.
+- A LiteLLM provider config for OpenClaw, with the default OpenClaw model set to `litellm/github_copilot/gpt-4` and ChatGPT subscription models also available.
 - Optional Discord bot bootstrap with token stored in a user-only env file and access policy stored in OpenClaw config.
 - Optional Codex/Copilot CLI auth guidance for tool-style usage.
 
@@ -27,7 +27,7 @@ This repo focuses on **bootstrap**, not snapshot/backup. It is meant to help you
 - You want a persistent browser endpoint for OpenClaw, not short-lived Browserless sessions.
 - Chrome CDP should stay local to the pod/host and should not be exposed publicly.
 - LiteLLM should run locally as the OpenClaw model gateway on `127.0.0.1:4000`.
-- LiteLLM should manage GitHub Copilot OAuth device-code login for the default model provider.
+- LiteLLM should manage GitHub Copilot and ChatGPT OAuth device-code login for subscription-backed models.
 - Discord access should be explicit: allowed DM users, allowed server/guild IDs, and private-server mention behavior.
 
 ## Prerequisite packages
@@ -132,6 +132,18 @@ curl -s http://127.0.0.1:4000/v1/chat/completions \
   }' | jq .
 ```
 
+To trigger ChatGPT subscription login too:
+
+```bash
+curl -s http://127.0.0.1:4000/v1/responses \
+  -H "Authorization: Bearer ${LITELLM_MASTER_KEY}" \
+  -H 'Content-Type: application/json' \
+  -d '{
+    "model": "chatgpt/gpt-5.4",
+    "input": "Say hello from ChatGPT through LiteLLM."
+  }' | jq .
+```
+
 Complete the device-code login in a browser. Then run the doctor:
 
 ```bash
@@ -143,7 +155,7 @@ Complete the device-code login in a browser. Then run the doctor:
 The default setup runs LiteLLM in the same Podman pod as OpenClaw:
 
 ```text
-OpenClaw gateway -> http://127.0.0.1:4000 -> LiteLLM -> GitHub Copilot OAuth/device-code provider
+OpenClaw gateway -> http://127.0.0.1:4000 -> LiteLLM -> GitHub Copilot / ChatGPT OAuth device-code providers
 ```
 
 The installer creates:
@@ -152,6 +164,7 @@ The installer creates:
 ~openclaw/.config/litellm/config.yaml
 ~openclaw/.config/litellm/litellm.env
 ~openclaw/.local/share/litellm/github_copilot
+~openclaw/.local/share/litellm/chatgpt
 ~openclaw/.config/openclaw-gateway/gateway.env
 ```
 
@@ -178,16 +191,16 @@ The OpenClaw config uses:
 }
 ```
 
-The default LiteLLM config uses GitHub Copilot OAuth device-code login. To use another provider, edit `~openclaw/.config/litellm/config.yaml` and `~openclaw/.config/litellm/litellm.env`, then update the OpenClaw model IDs to match the LiteLLM `model_name` values.
+The default LiteLLM config uses GitHub Copilot and ChatGPT OAuth device-code login. To use another provider, edit `~openclaw/.config/litellm/config.yaml` and `~openclaw/.config/litellm/litellm.env`, then update the OpenClaw model IDs to match the LiteLLM `model_name` values.
 
 See [docs/litellm-bootstrap.md](docs/litellm-bootstrap.md) for details.
 
 ## Optional: Codex and Copilot CLI auth
 
-Codex and Copilot CLI login is useful when OpenClaw invokes those CLIs as tools. Copilot model routing through LiteLLM is handled separately by the LiteLLM GitHub Copilot provider.
+Codex and Copilot CLI login is useful when OpenClaw invokes those CLIs as tools. Copilot and ChatGPT model routing through LiteLLM is handled separately by LiteLLM providers.
 
 ```text
-LiteLLM: model gateway with GitHub Copilot OAuth/device-code provider
+LiteLLM: model gateway with GitHub Copilot / ChatGPT OAuth device-code providers
 Codex/Copilot CLI: tool credentials for invoking those CLIs directly
 ```
 
@@ -292,6 +305,7 @@ When OpenClaw and the browser run in the same Podman pod, that address resolves 
 - Do not commit `~openclaw/.config/openclaw-gateway/gateway.env`; it contains runtime secrets such as `DISCORD_BOT_TOKEN` and `LITELLM_API_KEY`.
 - Do not commit `~openclaw/.config/litellm/litellm.env`; it contains the LiteLLM master key.
 - Do not commit `~openclaw/.local/share/litellm/github_copilot`; it contains OAuth-derived Copilot credentials.
+- Do not commit `~openclaw/.local/share/litellm/chatgpt`; it contains OAuth-derived ChatGPT credentials.
 - Treat Codex/Copilot CLI credential directories as secrets; do not bake them into container images.
 - This repo intentionally avoids snapshotting runtime state.
 - Treat the OpenClaw gateway, LiteLLM, and browser CDP endpoint as sensitive control surfaces.
