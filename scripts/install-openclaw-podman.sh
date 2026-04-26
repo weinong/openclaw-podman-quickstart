@@ -120,16 +120,15 @@ JSON
   chmod 0600 "${home_dir}/.openclaw/openclaw.json"
 else
   echo "Existing ${home_dir}/.openclaw/openclaw.json found; patching LiteLLM provider while preserving other config."
-  litellm_key="$(grep '^LITELLM_MASTER_KEY=' "${home_dir}/.config/litellm/litellm.env" | cut -d= -f2- || true)"
   tmp_config="$(mktemp)"
-  jq --arg apiKey "${litellm_key}" '
+  jq '
     .browser.enabled = true |
     .browser.defaultProfile = "default" |
     .browser.profiles.default.driver = "cdp" |
     .browser.profiles.default.cdpUrl = "http://127.0.0.1:9222" |
     .models.providers.litellm = {
       baseUrl: "http://127.0.0.1:4000",
-      apiKey: $apiKey,
+      apiKey: "${LITELLM_API_KEY}",
       api: "openai-completions",
       models: [
         {
@@ -156,7 +155,8 @@ else
   rm -f "${tmp_config}"
 fi
 
-# The OpenClaw gateway also needs LITELLM_API_KEY. Use the local LiteLLM master key by default.
+# The OpenClaw gateway resolves ${LITELLM_API_KEY} from its environment.
+# Use the local LiteLLM master key by default.
 litellm_key="$(grep '^LITELLM_MASTER_KEY=' "${home_dir}/.config/litellm/litellm.env" | cut -d= -f2- || true)"
 if [[ -n "${litellm_key}" ]]; then
   tmp_gateway_env="$(mktemp)"
