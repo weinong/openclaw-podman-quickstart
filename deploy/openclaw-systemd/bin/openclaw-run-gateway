@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+exec /usr/bin/podman run --rm \
+  --name openclaw-gateway \
+  --pod openclaw \
+  --env-file "${HOME}/.config/openclaw-gateway/gateway.env" \
+  -e OPENCLAW_HOME=/home/node/.openclaw \
+  -e OPENCLAW_CONFIG_PATH=/home/node/.openclaw/openclaw.json \
+  -e NO_COLOR=1 \
+  -v "${HOME}/.openclaw:/home/node/.openclaw:Z" \
+  -v "${HOME}/.openclaw/workspace:/home/node/.openclaw/workspace:Z" \
+  ghcr.io/openclaw/openclaw:latest
