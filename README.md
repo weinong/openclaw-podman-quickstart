@@ -2,7 +2,23 @@
 
 Bootstrap a headless Ubuntu host to run OpenClaw-related services with rootless Podman and user-level systemd.
 
-This repo focuses on reproducible bootstrap. Runtime state, credentials, and generated config live in the `openclaw` user's home directory and should not be committed.
+This repo focuses on reproducible bootstrap and host/service integration. Runtime state, credentials, and generated config live in the `openclaw` user's home directory and should not be committed.
+
+## Design Principle
+
+`oc.sh` is the repository's control plane for a Podman-based OpenClaw host. It installs and manages the supporting services, writes their runtime secrets/config, and patches OpenClaw config with the SecretRefs, providers, accounts, and bindings needed to use those services.
+
+OpenClaw owns application and runtime semantics. `oc.sh` owns host/service resources and keeps OpenClaw config pointed at them correctly.
+
+That means `oc.sh` should manage resources such as:
+
+- user systemd units, Quadlet files, and Podman fallback helpers
+- `~/.config/openclaw-gateway/gateway.env`
+- `~/.config/litellm/litellm.env` and `~/.config/litellm/config.yaml`
+- `~/.config/searxng/settings.yml`
+- initial or integration-specific patches to `~/.openclaw/openclaw.json`
+
+It should align with OpenClaw-native concepts rather than invent parallel ones: JSON-path config writes, SecretRefs, channel accounts, agents, and bindings.
 
 ## What this sets up
 

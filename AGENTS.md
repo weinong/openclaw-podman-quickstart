@@ -2,6 +2,19 @@
 
 This repo uses a single user-run bootstrap entrypoint, `oc.sh`. Prefer small, focused changes and keep README/docs synchronized with command behavior.
 
+## Design Principle
+
+`oc.sh` is the repository's control plane for a Podman-based OpenClaw host. It installs and manages supporting services, writes their runtime secrets/config, and patches OpenClaw config with the SecretRefs, providers, accounts, and bindings needed to use those services.
+
+OpenClaw owns application and runtime semantics. `oc.sh` owns host/service resources and keeps OpenClaw config pointed at them correctly.
+
+When adding features, keep this boundary clear:
+
+- Use `oc.sh` for host/service resources, env files, systemd/Podman assets, image pins, and integration-specific config patches.
+- Align config changes with OpenClaw-native concepts such as JSON-path config writes, SecretRefs, channel accounts, agents, and bindings.
+- Do not invent repo-specific config schemas when an OpenClaw config path or runtime concept exists.
+- Keep raw secrets out of `openclaw.json`; use SecretRefs where OpenClaw supports them and store actual values in user-owned env/config files with restrictive permissions.
+
 ## `oc.sh` Subcommands
 
 When adding or changing an `oc.sh` subcommand, make sure the subcommand supports both `-h` and `--help`. Help output must work without requiring the `openclaw` user, user systemd, Podman, or other runtime services.
