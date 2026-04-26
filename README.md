@@ -18,6 +18,7 @@ This repo focuses on **bootstrap**, not snapshot/backup. It is meant to help you
 - A minimal OpenClaw browser profile config pointing to the persistent CDP endpoint.
 - A LiteLLM provider config for OpenClaw, with the default OpenClaw model set to `litellm/openai/gpt-4.1-mini`.
 - Optional Discord bot bootstrap with token stored in a user-only env file and access policy stored in OpenClaw config.
+- Optional Codex/Copilot subscription CLI auth guidance for tool-style usage.
 
 ## Assumptions
 
@@ -26,6 +27,7 @@ This repo focuses on **bootstrap**, not snapshot/backup. It is meant to help you
 - You want a persistent browser endpoint for OpenClaw, not short-lived Browserless sessions.
 - Chrome CDP should stay local to the pod/host and should not be exposed publicly.
 - LiteLLM should run locally as the OpenClaw model gateway on `127.0.0.1:4000`.
+- Codex/Copilot subscription login is useful for CLI tools, but it is separate from LiteLLM provider routing.
 - Discord access should be explicit: allowed DM users, allowed server/guild IDs, and private-server mention behavior.
 
 ## Prerequisite packages
@@ -168,6 +170,25 @@ The default LiteLLM config expects `OPENAI_API_KEY`. To use another provider, ed
 
 See [docs/litellm-bootstrap.md](docs/litellm-bootstrap.md) for details.
 
+## Optional: Codex and Copilot subscription CLI auth
+
+Codex and Copilot subscription login is useful when OpenClaw invokes those CLIs as tools. It is separate from LiteLLM model routing.
+
+```text
+LiteLLM: model gateway with API keys/provider credentials
+Codex/Copilot CLI: tool credentials with OAuth/device-code login
+```
+
+Run CLI login as the same service user that runs OpenClaw:
+
+```bash
+sudo -iu openclaw
+codex login
+copilot login
+```
+
+See [docs/subscription-cli-auth.md](docs/subscription-cli-auth.md) for details.
+
 ## Optional: bootstrap Discord
 
 Create a Discord application and bot in the Discord Developer Portal, copy the bot token, enable the required intents, and invite the bot to your server.
@@ -228,7 +249,8 @@ See [docs/discord-bootstrap.md](docs/discord-bootstrap.md) for the full Discord 
 ├── docs/
 │   ├── bootstrap.md
 │   ├── discord-bootstrap.md
-│   └── litellm-bootstrap.md
+│   ├── litellm-bootstrap.md
+│   └── subscription-cli-auth.md
 ├── scripts/
 │   ├── bootstrap-os.sh
 │   ├── configure-discord.sh
@@ -257,6 +279,7 @@ When OpenClaw and the browser run in the same Podman pod, that address resolves 
 - Do not commit real `openclaw.json` files if they contain auth profiles, tokens, API keys, or local machine secrets.
 - Do not commit `~openclaw/.config/openclaw-gateway/gateway.env`; it contains runtime secrets such as `DISCORD_BOT_TOKEN` and `LITELLM_API_KEY`.
 - Do not commit `~openclaw/.config/litellm/litellm.env`; it contains upstream provider keys such as `OPENAI_API_KEY`.
+- Treat Codex/Copilot CLI credential directories as secrets; do not bake them into container images.
 - This repo intentionally avoids snapshotting runtime state.
 - Treat the OpenClaw gateway, LiteLLM, and browser CDP endpoint as sensitive control surfaces.
 
@@ -264,4 +287,5 @@ When OpenClaw and the browser run in the same Podman pod, that address resolves 
 
 - [Bootstrap OpenClaw with rootless Podman](docs/bootstrap.md)
 - [Bootstrap LiteLLM sidecar for OpenClaw](docs/litellm-bootstrap.md)
+- [Codex and Copilot subscription CLI auth](docs/subscription-cli-auth.md)
 - [Bootstrap Discord for OpenClaw](docs/discord-bootstrap.md)
