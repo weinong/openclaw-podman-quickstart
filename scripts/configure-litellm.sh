@@ -4,15 +4,16 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  OPENAI_API_KEY='...' sudo -E ./scripts/configure-litellm.sh openclaw
+  sudo ./scripts/configure-litellm.sh openclaw
 
 Optional:
-  LITELLM_MASTER_KEY='sk-litellm-...' OPENAI_API_KEY='...' sudo -E ./scripts/configure-litellm.sh openclaw
+  LITELLM_MASTER_KEY='sk-litellm-...' sudo -E ./scripts/configure-litellm.sh openclaw
 
 Notes:
   - Writes ~/.config/litellm/litellm.env with mode 0600.
-  - Does not write provider API keys to openclaw.json.
-  - The default config/litellm/config.yaml expects OPENAI_API_KEY.
+  - The default config/litellm/config.yaml uses GitHub Copilot OAuth device flow.
+  - No upstream API key is required for the default GitHub Copilot provider config.
+  - The first model request prints a device login URL/code in LiteLLM logs.
 EOF
 }
 
@@ -38,12 +39,6 @@ if [[ "${EUID}" -ne 0 ]]; then
   exit 1
 fi
 
-if [[ -z "${OPENAI_API_KEY:-}" ]]; then
-  echo "OPENAI_API_KEY is required in the environment for the default LiteLLM config." >&2
-  echo "Example: OPENAI_API_KEY='...' sudo -E $0 ${svc_user}" >&2
-  exit 1
-fi
-
 home_dir="$(getent passwd "${svc_user}" | cut -d: -f6)"
 if [[ -z "${home_dir}" ]]; then
   echo "User not found: ${svc_user}" >&2
@@ -52,10 +47,12 @@ fi
 
 litellm_dir="${home_dir}/.config/litellm"
 litellm_env="${litellm_dir}/litellm.env"
+copilot_token_dir="${home_dir}/.local/share/litellm/github_copilot"
 gateway_env_dir="${home_dir}/.config/openclaw-gateway"
 gateway_env="${gateway_env_dir}/gateway.env"
 
 install -d -o "${svc_user}" -g "${svc_user}" -m 0700 "${litellm_dir}"
+install -d -o "${svc_user}" -g "${svc_user}" -m 0700 "${copilot_token_dir}"
 install -d -o "${svc_user}" -g "${svc_user}" -m 0700 "${gateway_env_dir}"
 
 existing_master_key=""
@@ -71,7 +68,9 @@ fi
 tmp_litellm_env="$(mktemp)"
 cat > "${tmp_litellm_env}" <<EOF
 LITELLM_MASTER_KEY=${master_key}
-OPENAI_API_KEY=${OPENAI_API_KEY}
+# GitHub Copilot provider uses OAuth device flow.
+# No upstream API key is required for the default config.yaml.
+# The first model request prints a device login URL/code in LiteLLM logs.
 EOF
 install -o "${svc_user}" -g "${svc_user}" -m 0600 "${tmp_litellm_env}" "${litellm_env}"
 rm -f "${tmp_litellm_env}"
@@ -86,5 +85,7 @@ install -o "${svc_user}" -g "${svc_user}" -m 0600 "${tmp_gateway_env}" "${gatewa
 rm -f "${tmp_gateway_env}"
 
 echo "LiteLLM env written to: ${litellm_env}"
+echo "Copilot OAuth token cache: ${copilot_token_dir}"
 echo "Gateway env updated with LITELLM_API_KEY: ${gateway_env}"
 echo "Restart LiteLLM and OpenClaw gateway after changing keys."
+echo "Then trigger a model call and watch LiteLLM logs for the GitHub device-code login."
