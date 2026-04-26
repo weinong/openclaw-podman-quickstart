@@ -1,0 +1,15 @@
+[Unit]
+Description=Persistent Chromium CDP browser for OpenClaw
+After=openclaw-pod.service
+Requires=openclaw-pod.service
+
+[Service]
+Restart=always
+RestartSec=5
+TimeoutStartSec=300
+ExecStartPre=-/usr/bin/podman rm -f openclaw-browser
+ExecStart=/usr/bin/podman run --rm --name openclaw-browser --pod openclaw --shm-size=2g -v %h/.local/share/openclaw-browser:/data:Z docker.io/chromedp/headless-shell:latest
+ExecStop=/usr/bin/podman stop openclaw-browser
+
+[Install]
+WantedBy=default.target
