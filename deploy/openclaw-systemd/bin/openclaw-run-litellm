@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+exec /usr/bin/podman run --rm \
+  --name openclaw-litellm \
+  --pod openclaw \
+  --env-file "${HOME}/.config/litellm/litellm.env" \
+  -e GITHUB_COPILOT_TOKEN_DIR=/data/github_copilot \
+  -e CHATGPT_TOKEN_DIR=/data/chatgpt \
+  -v "${HOME}/.config/litellm/config.yaml:/app/config.yaml:Z" \
+  -v "${HOME}/.local/share/litellm:/data:Z" \
+  docker.io/berriai/litellm:main-latest \
+  --config /app/config.yaml --port 4000 --host 0.0.0.0
