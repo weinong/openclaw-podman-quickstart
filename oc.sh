@@ -141,7 +141,7 @@ Targets:
     Creates LiteLLM token-cache directories under ~/.local/share/litellm.
 
   searxng
-    Creates ~/.config/searxng/settings.yml if missing, with a generated secret.
+    Installs the bundled SearXNG settings template if missing, with a generated secret.
     Leaves existing SearXNG settings unchanged.
     Writes SEARXNG_BASE_URL into ~/.config/openclaw-gateway/gateway.env.
     Enables the bundled SearXNG plugin and patches OpenClaw web search config.
@@ -612,40 +612,22 @@ config_searxng() {
   local categories="${SEARXNG_CATEGORIES:-general,news}"
   local language="${SEARXNG_LANGUAGE:-en}"
   local settings_file="${HOME}/.config/searxng/settings.yml"
+  local settings_template="${repo_root}/config/searxng/settings.yml"
 
   if [[ ! -f "${settings_file}" ]]; then
+    [[ -f "${settings_template}" ]] || die "missing SearXNG settings template: ${settings_template}"
     local secret_key
     secret_key="$(openssl rand -hex 32)"
-    cat > "${settings_file}" <<EOF
-use_default_settings: true
-
-server:
-  bind_address: "0.0.0.0"
-  port: 8080
-  secret_key: "${secret_key}"
-  base_url: "${base_url}"
-  image_proxy: true
-  limiter: false
-
-ui:
-  static_use_hash: true
-  default_locale: "en"
-  query_in_title: false
-
-search:
-  safe_search: 1
-  autocomplete: ""
-  default_lang: "auto"
-  formats:
-    - html
-    - json
-
-outgoing:
-  request_timeout: 5.0
-  max_request_timeout: 15.0
-  useragent_suffix: "openclaw-podman-quickstart"
-EOF
-    chmod 0600 "${settings_file}"
+    local tmp
+    tmp="$(mktemp)"
+    TEMPLATE_SECRET_KEY="${secret_key}" TEMPLATE_BASE_URL="${base_url}" \
+      jq -nr --rawfile template "${settings_template}" '
+        $template
+        | gsub("CHANGE_ME_SEARXNG_SECRET"; env.TEMPLATE_SECRET_KEY)
+        | gsub("http://127.0.0.1:8080/"; env.TEMPLATE_BASE_URL)
+      ' > "${tmp}"
+    install -m 0600 "${tmp}" "${settings_file}"
+    rm -f "${tmp}"
   else
     echo "Existing ${settings_file} found; leaving it unchanged."
   fi

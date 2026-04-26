@@ -4,6 +4,7 @@ set -euo pipefail
 exec /usr/bin/podman run --rm \
   --name openclaw-searxng \
   --pod openclaw \
+  --user 0:0 \
   -e SEARXNG_BASE_URL=http://127.0.0.1:8080/ \
   -e UWSGI_WORKERS=4 \
   -e UWSGI_THREADS=4 \

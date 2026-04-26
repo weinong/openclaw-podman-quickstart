@@ -88,7 +88,7 @@ cd openclaw-podman-quickstart
 - Creates directories under `~/.config`, `~/.local/share`, and `~/.openclaw`.
 - Creates or patches `~/.openclaw/openclaw.json`.
 - Configures LiteLLM and writes `~/.config/litellm/litellm.env`.
-- Configures SearXNG and writes `~/.config/searxng/settings.yml`.
+- Configures SearXNG and installs `~/.config/searxng/settings.yml` from the bundled template with a generated secret.
 - Installs user systemd units.
 - Starts the pod, browser, LiteLLM, and SearXNG services.
 - Leaves `openclaw-gateway.service` installed but stopped by default.
@@ -233,7 +233,7 @@ Refresh SearXNG config:
 ./oc.sh restart searxng
 ```
 
-`./oc.sh config searxng` enables OpenClaw's bundled SearXNG plugin and points it at the local sidecar.
+`./oc.sh config searxng` installs the bundled SearXNG settings template when missing, enables OpenClaw's bundled SearXNG plugin, and points it at the local sidecar.
 
 ## Persistent Browser
 
