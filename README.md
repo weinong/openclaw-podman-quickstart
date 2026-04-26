@@ -4,21 +4,20 @@ Bootstrap a headless Ubuntu host to run OpenClaw-related services with rootless 
 
 This repo focuses on reproducible bootstrap and host/service integration. Runtime state, credentials, and generated config live in the `openclaw` user's home directory and should not be committed.
 
-## Design Principle
+## Goals
 
-`oc.sh` is the repository's control plane for a Podman-based OpenClaw host. It installs and manages the supporting services, writes their runtime secrets/config, and patches OpenClaw config with the SecretRefs, providers, accounts, and bindings needed to use those services.
+This repo is meant to make a prepared VM become a working, rootless OpenClaw host with one repeatable command. It should give operators a small control surface for installing, configuring, updating, inspecting, and removing the Podman-based services that support OpenClaw.
 
-OpenClaw owns application and runtime semantics. `oc.sh` owns host/service resources and keeps OpenClaw config pointed at them correctly.
+The goals are:
 
-That means `oc.sh` should manage resources such as:
-
-- user systemd units, Quadlet files, and Podman fallback helpers
-- `~/.config/openclaw-gateway/gateway.env`
-- `~/.config/litellm/litellm.env` and `~/.config/litellm/config.yaml`
-- `~/.config/searxng/settings.yml`
-- initial or integration-specific patches to `~/.openclaw/openclaw.json`
-
-It should align with OpenClaw-native concepts rather than invent parallel ones: JSON-path config writes, SecretRefs, channel accounts, agents, and bindings.
+- Run OpenClaw and its sidecars as the dedicated `openclaw` user, not as root or the VM admin user.
+- Keep host resources, service config, generated secrets, and OpenClaw config synchronized.
+- Store raw runtime secrets in user-owned env/config files with restrictive permissions.
+- Store references to those secrets in `openclaw.json` using OpenClaw SecretRefs where supported.
+- Configure OpenClaw using its native concepts: JSON-path config writes, providers, channel accounts, agents, and bindings.
+- Support both newer Quadlet deployments and Ubuntu 24.04's Podman 4.9-compatible user-systemd fallback.
+- Keep deployed container images auditable with immutable tag-plus-digest pins.
+- Make install, doctor, service management, config patching, image inventory, and uninstall available through `oc.sh`.
 
 ## What this sets up
 
