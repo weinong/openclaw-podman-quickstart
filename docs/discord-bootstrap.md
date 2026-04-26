@@ -5,6 +5,7 @@ This guide configures OpenClaw's Discord channel with:
 - bot token loaded from a user-only environment file
 - DM allowlist
 - guild/server allowlist
+- optional guild channel allowlist
 - optional guild user allowlist
 - `requireMention: false` for private servers where the bot should respond without being @mentioned
 
@@ -26,8 +27,9 @@ Use Discord numeric IDs for bootstrap:
 
 - your Discord user ID
 - the Discord guild/server ID
+- optional Discord channel IDs
 
-In Discord, enable Developer Mode, then right-click the user/server and copy the ID.
+In Discord, enable Developer Mode, then right-click the user, server, or channel and copy the ID.
 
 ## Configure Discord
 
@@ -62,6 +64,31 @@ DISCORD_BOT_TOKEN='YOUR_BOT_TOKEN' \
     --guild-user ALLOWED_GUILD_USER_ID \
     --require-mention false
 ```
+
+To restrict the bot to one or more guild channels, add `--channel-id` values:
+
+```bash
+DISCORD_BOT_TOKEN='YOUR_BOT_TOKEN' \
+  sudo -E bash ./scripts/configure-discord.sh openclaw \
+    --dm-user YOUR_DISCORD_USER_ID \
+    --guild YOUR_DISCORD_GUILD_ID \
+    --channel-id YOUR_DISCORD_CHANNEL_ID \
+    --require-mention false
+```
+
+For multiple channels:
+
+```bash
+DISCORD_BOT_TOKEN='YOUR_BOT_TOKEN' \
+  sudo -E bash ./scripts/configure-discord.sh openclaw \
+    --dm-user YOUR_DISCORD_USER_ID \
+    --guild YOUR_DISCORD_GUILD_ID \
+    --channel-id CHANNEL_ID_1 \
+    --channel-id CHANNEL_ID_2 \
+    --require-mention false
+```
+
+If `--channel-id` is omitted, the script allowlists the guild without adding a channel restriction. If one or more `--channel-id` values are set, OpenClaw restricts that guild to those channels.
 
 ## What the script writes
 
@@ -99,6 +126,29 @@ The script patches the Discord channel block into `openclaw.json`:
         "YOUR_DISCORD_GUILD_ID": {
           "requireMention": false,
           "users": ["YOUR_DISCORD_USER_ID"]
+        }
+      }
+    }
+  }
+}
+```
+
+With channel restrictions, the guild entry includes a `channels` map:
+
+```json
+{
+  "channels": {
+    "discord": {
+      "guilds": {
+        "YOUR_DISCORD_GUILD_ID": {
+          "requireMention": false,
+          "users": ["YOUR_DISCORD_USER_ID"],
+          "channels": {
+            "YOUR_DISCORD_CHANNEL_ID": {
+              "allow": true,
+              "requireMention": false
+            }
+          }
         }
       }
     }
@@ -150,5 +200,7 @@ bash ./openclaw-podman-quickstart/scripts/doctor-openclaw-podman.sh
 
 - `dmPolicy: "allowlist"` restricts direct messages to the configured `allowFrom` entries.
 - `groupPolicy: "allowlist"` restricts guild/server handling to configured guild IDs.
-- `requireMention: false` allows the bot to respond in that guild without being @mentioned. This is best for private servers where the bot is expected to participate freely.
+- If a guild has no `channels` block, messages from the allowlisted users are allowed anywhere in that guild where the bot has Discord permissions.
+- If a guild has a `channels` block, only listed channels are allowed.
+- `requireMention: false` allows the bot to respond in that guild or channel without being @mentioned. This is best for private servers where the bot is expected to participate freely.
 - For shared or busy servers, prefer `requireMention: true` to reduce accidental bot responses.
