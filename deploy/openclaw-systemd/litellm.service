@@ -1,0 +1,16 @@
+[Unit]
+Description=LiteLLM proxy sidecar for OpenClaw
+After=openclaw-pod.service
+Requires=openclaw-pod.service
+
+[Service]
+Restart=always
+RestartSec=5
+TimeoutStartSec=300
+EnvironmentFile=%h/.config/litellm/litellm.env
+ExecStartPre=-/usr/bin/podman rm -f openclaw-litellm
+ExecStart=%h/.local/bin/openclaw-run-litellm
+ExecStop=/usr/bin/podman stop openclaw-litellm
+
+[Install]
+WantedBy=default.target
