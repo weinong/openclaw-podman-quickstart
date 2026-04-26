@@ -8,5 +8,5 @@ exec /usr/bin/podman run --rm \
   -e SEARXNG_BASE_URL=http://127.0.0.1:8080/ \
   -e UWSGI_WORKERS=4 \
   -e UWSGI_THREADS=4 \
-  -v "${HOME}/.config/searxng:/etc/searxng:Z" \
+  -v "${HOME}/.config/searxng/settings.yml:/etc/searxng/settings.yml:ro,Z" \
   __SEARXNG_IMAGE__

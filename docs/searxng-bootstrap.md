@@ -20,7 +20,7 @@ The pod publishes SearXNG on host loopback only:
 127.0.0.1:8080:8080
 ```
 
-The SearXNG container runs as `0:0` inside rootless Podman. In this deployment that maps to the host `openclaw` user, keeping the host-managed `~/.config/searxng` bind mount writable by `oc.sh`.
+The SearXNG container receives only `~/.config/searxng/settings.yml` as a read-only file mount. `oc.sh` owns that host-generated config file; the container consumes it without owning or mutating the host config directory.
 
 ## Files Installed
 
