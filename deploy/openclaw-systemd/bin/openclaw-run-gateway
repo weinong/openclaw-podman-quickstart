@@ -4,7 +4,9 @@ set -euo pipefail
 exec /usr/bin/podman run --rm \
   --name openclaw-gateway \
   --pod openclaw \
+  --userns=keep-id \
   --env-file "${HOME}/.config/openclaw-gateway/gateway.env" \
+  -e HOME=/home/node \
   -e OPENCLAW_HOME=/home/node/.openclaw \
   -e OPENCLAW_CONFIG_PATH=/home/node/.openclaw/openclaw.json \
   -e NO_COLOR=1 \
