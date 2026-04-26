@@ -1,6 +1,6 @@
 # OpenClaw Podman Quickstart
 
-Bootstrap a headless Ubuntu host to run OpenClaw with rootless Podman, user-level systemd services, a persistent Chromium CDP browser container, and optional Discord gateway configuration.
+Bootstrap a headless Ubuntu host to run OpenClaw with rootless Podman, user-level systemd services, a persistent Chromium CDP browser container, a LiteLLM sidecar, and optional Discord gateway configuration.
 
 This repo focuses on **bootstrap**, not snapshot/backup. It is meant to help you reproduce the setup quickly on a fresh VM.
 
@@ -13,8 +13,10 @@ This repo focuses on **bootstrap**, not snapshot/backup. It is meant to help you
 - Quadlet units for:
   - an OpenClaw pod
   - a persistent Chromium CDP browser container
+  - a LiteLLM proxy sidecar
   - an optional OpenClaw gateway container skeleton
 - A minimal OpenClaw browser profile config pointing to the persistent CDP endpoint.
+- A LiteLLM provider config for OpenClaw, with the default OpenClaw model set to `litellm/openai/gpt-4.1-mini`.
 - Optional Discord bot bootstrap with token stored in a user-only env file and access policy stored in OpenClaw config.
 
 ## Assumptions
@@ -23,6 +25,7 @@ This repo focuses on **bootstrap**, not snapshot/backup. It is meant to help you
 - You want to run services as a non-root user.
 - You want a persistent browser endpoint for OpenClaw, not short-lived Browserless sessions.
 - Chrome CDP should stay local to the pod/host and should not be exposed publicly.
+- LiteLLM should run locally as the OpenClaw model gateway on `127.0.0.1:4000`.
 - Discord access should be explicit: allowed DM users, allowed server/guild IDs, and private-server mention behavior.
 
 ## Prerequisite packages
@@ -102,12 +105,68 @@ sudo ./scripts/bootstrap-os.sh openclaw
 sudo ./scripts/install-openclaw-podman.sh openclaw
 ```
 
-Then switch to the service user:
+Then add a real provider API key for the default LiteLLM config:
+
+```bash
+OPENAI_API_KEY='YOUR_OPENAI_API_KEY' \
+  sudo -E bash ./scripts/configure-litellm.sh openclaw
+```
+
+Restart LiteLLM after setting the key:
 
 ```bash
 sudo -iu openclaw
+systemctl --user restart litellm.service
+```
+
+Run the doctor:
+
+```bash
 ./openclaw-podman-quickstart/scripts/doctor-openclaw-podman.sh
 ```
+
+## LiteLLM sidecar
+
+The default setup runs LiteLLM in the same Podman pod as OpenClaw:
+
+```text
+OpenClaw gateway -> http://127.0.0.1:4000 -> LiteLLM -> upstream model provider
+```
+
+The installer creates:
+
+```text
+~openclaw/.config/litellm/config.yaml
+~openclaw/.config/litellm/litellm.env
+~openclaw/.config/openclaw-gateway/gateway.env
+```
+
+The OpenClaw config uses:
+
+```json
+{
+  "models": {
+    "providers": {
+      "litellm": {
+        "baseUrl": "http://127.0.0.1:4000",
+        "apiKey": "${LITELLM_API_KEY}",
+        "api": "openai-completions"
+      }
+    }
+  },
+  "agents": {
+    "defaults": {
+      "model": {
+        "primary": "litellm/openai/gpt-4.1-mini"
+      }
+    }
+  }
+}
+```
+
+The default LiteLLM config expects `OPENAI_API_KEY`. To use another provider, edit `~openclaw/.config/litellm/config.yaml` and `~openclaw/.config/litellm/litellm.env`, then update the OpenClaw model IDs to match the LiteLLM `model_name` values.
+
+See [docs/litellm-bootstrap.md](docs/litellm-bootstrap.md) for details.
 
 ## Optional: bootstrap Discord
 
@@ -158,16 +217,22 @@ See [docs/discord-bootstrap.md](docs/discord-bootstrap.md) for the full Discord 
 
 ```text
 .
+├── config/litellm/
+│   ├── config.yaml
+│   └── litellm.env.example
 ├── deploy/openclaw/
+│   ├── litellm.container
 │   ├── openclaw.pod
 │   ├── openclaw-browser.container
 │   └── openclaw-gateway.container
 ├── docs/
 │   ├── bootstrap.md
-│   └── discord-bootstrap.md
+│   ├── discord-bootstrap.md
+│   └── litellm-bootstrap.md
 ├── scripts/
 │   ├── bootstrap-os.sh
 │   ├── configure-discord.sh
+│   ├── configure-litellm.sh
 │   ├── install-openclaw-podman.sh
 │   └── doctor-openclaw-podman.sh
 └── README.md
@@ -188,12 +253,15 @@ When OpenClaw and the browser run in the same Podman pod, that address resolves 
 ## Security notes
 
 - Do not expose Chrome CDP to the public internet.
+- Do not expose LiteLLM port `4000` beyond host loopback unless you have explicit auth, TLS, and network policy.
 - Do not commit real `openclaw.json` files if they contain auth profiles, tokens, API keys, or local machine secrets.
-- Do not commit `~openclaw/.config/openclaw-gateway/gateway.env`; it contains the Discord bot token.
+- Do not commit `~openclaw/.config/openclaw-gateway/gateway.env`; it contains runtime secrets such as `DISCORD_BOT_TOKEN` and `LITELLM_API_KEY`.
+- Do not commit `~openclaw/.config/litellm/litellm.env`; it contains upstream provider keys such as `OPENAI_API_KEY`.
 - This repo intentionally avoids snapshotting runtime state.
-- Treat the OpenClaw gateway and browser CDP endpoint as sensitive control surfaces.
+- Treat the OpenClaw gateway, LiteLLM, and browser CDP endpoint as sensitive control surfaces.
 
 ## Detailed guides
 
 - [Bootstrap OpenClaw with rootless Podman](docs/bootstrap.md)
+- [Bootstrap LiteLLM sidecar for OpenClaw](docs/litellm-bootstrap.md)
 - [Bootstrap Discord for OpenClaw](docs/discord-bootstrap.md)
