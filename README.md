@@ -268,7 +268,7 @@ Runtime endpoints bind to localhost only:
 Grafana:    http://127.0.0.1:3000
 Prometheus: http://127.0.0.1:9090
 Loki:       http://127.0.0.1:3100
-OTLP gRPC:  127.0.0.1:4317
+OTLP gRPC:  127.0.0.1:14317
 OTLP HTTP:  http://127.0.0.1:4318
 ```
 
@@ -287,7 +287,7 @@ export OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318
 export OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
 ```
 
-For gRPC clients, use `http://127.0.0.1:4317`. OTLP logs are available in Grafana Explore with `{job="otel-logs"}`. Traces are not stored by this stack because it does not install a trace backend.
+For gRPC clients, use `http://127.0.0.1:14317`. OTLP logs are available in Grafana Explore with `{job="otel-logs"}`. Traces are not stored by this stack because it does not install a trace backend.
 
 If you installed an earlier version of this branch and Grafana shows `Failed to fetch` or empty panels, refresh the installed units/config and restart the managed containers so the fixed podman-exporter options and file logging are applied:
 

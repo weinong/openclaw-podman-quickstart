@@ -310,7 +310,7 @@ Install and manage the optional observability stack:
   Grafana dashboard: http://127.0.0.1:3000
   Prometheus:        http://127.0.0.1:9090
   Loki:              http://127.0.0.1:3100
-  OTLP gRPC:         127.0.0.1:4317
+  OTLP gRPC:         127.0.0.1:14317
   OTLP HTTP:         http://127.0.0.1:4318
 
 Commands:
