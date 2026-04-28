@@ -94,13 +94,13 @@ Services:
   gateway                 openclaw-gateway.service
   pod                     openclaw-pod.service
   core                    pod, browser, LiteLLM, and SearXNG services
-  observability           Grafana, Prometheus, Loki, Alloy, and podman-exporter
+  observability           Grafana, Prometheus, Loki, Alloy, OTLP, and podman-exporter
   all                     all OpenClaw services
 
 Observability:
   observability install [fallback|quadlet]
                            Install and start Grafana, Prometheus, Loki, Alloy,
-                           and podman-exporter. Auto-detects Quadlet .pod support.
+                           OTLP, and podman-exporter. Auto-detects Quadlet .pod support.
   observability config     Install or refresh observability config templates.
   observability uninstall [--purge --yes|-y]
                            Remove observability units and containers.
@@ -310,6 +310,8 @@ Install and manage the optional observability stack:
   Grafana dashboard: http://127.0.0.1:3000
   Prometheus:        http://127.0.0.1:9090
   Loki:              http://127.0.0.1:3100
+  OTLP gRPC:         127.0.0.1:4317
+  OTLP HTTP:         http://127.0.0.1:4318
 
 Commands:
   install                Create config, install units, and start the stack.
@@ -1433,6 +1435,7 @@ doctor_observability() {
     curl -fsS http://127.0.0.1:3000/api/health | jq . || true
     curl -fsS http://127.0.0.1:9090/-/ready || true
     curl -fsS http://127.0.0.1:3100/ready || true
+    curl -sS -o /dev/null -w 'OTLP HTTP logs endpoint: HTTP %{http_code}\n' http://127.0.0.1:4318/v1/logs || true
     curl -fsS http://127.0.0.1:9090/api/v1/targets \
       | jq '.data.activeTargets[] | {job: .labels.job, health: .health, scrapeUrl: .scrapeUrl, lastError: .lastError}' || true
   else

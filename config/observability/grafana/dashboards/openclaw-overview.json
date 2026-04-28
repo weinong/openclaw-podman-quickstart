@@ -314,12 +314,12 @@
             "uid": "Loki"
           },
           "editorMode": "code",
-          "expr": "{job=\"podman-container-logs\"}",
+          "expr": "{job=~\"podman-container-logs|otel-logs\"}",
           "queryType": "range",
           "refId": "A"
         }
       ],
-      "title": "Podman Container Logs",
+      "title": "Podman Container and OTLP Logs",
       "type": "logs"
     }
   ],

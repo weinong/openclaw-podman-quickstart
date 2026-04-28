@@ -10,7 +10,7 @@ ContainerName=openclaw-prometheus
 User=0:0
 Volume=%h/.config/openclaw-observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro,Z
 Volume=%h/.local/share/openclaw-observability/prometheus:/prometheus:Z
-Exec=--config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/prometheus --storage.tsdb.retention.time=15d --web.listen-address=0.0.0.0:9090
+Exec=--config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/prometheus --storage.tsdb.retention.time=15d --web.listen-address=0.0.0.0:9090 --web.enable-remote-write-receiver
 
 [Service]
 Restart=always

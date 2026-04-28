@@ -6,6 +6,8 @@ PodName=openclaw-observability
 PublishPort=127.0.0.1:3000:3000
 PublishPort=127.0.0.1:9090:9090
 PublishPort=127.0.0.1:3100:3100
+PublishPort=127.0.0.1:4317:4317
+PublishPort=127.0.0.1:4318:4318
 
 [Install]
 WantedBy=default.target

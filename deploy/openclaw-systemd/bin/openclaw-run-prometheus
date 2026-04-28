@@ -11,4 +11,5 @@ exec /usr/bin/podman run --rm \
   --config.file=/etc/prometheus/prometheus.yml \
   --storage.tsdb.path=/prometheus \
   --storage.tsdb.retention.time=15d \
-  --web.listen-address=0.0.0.0:9090
+  --web.listen-address=0.0.0.0:9090 \
+  --web.enable-remote-write-receiver

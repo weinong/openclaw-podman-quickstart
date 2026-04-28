@@ -28,7 +28,7 @@ The goals are:
 - A SearXNG sidecar for local web search.
 - An optional OpenClaw gateway container skeleton.
 - Optional Discord channel bootstrap.
-- Optional Grafana, Prometheus, Loki, Alloy, and podman-exporter observability stack.
+- Optional Grafana, Prometheus, Loki, Alloy, podman-exporter, and OTLP observability stack.
 
 ## Admin prep
 
@@ -259,7 +259,7 @@ This installs and starts:
 - Grafana for dashboards.
 - Prometheus for metrics storage and scraping.
 - Loki for log storage and queries.
-- Grafana Alloy for collecting Podman container logs.
+- Grafana Alloy for collecting Podman container logs and local OTLP logs/metrics.
 - podman-exporter for Podman pod/container/image/volume/network metrics.
 
 Runtime endpoints bind to localhost only:
@@ -268,6 +268,8 @@ Runtime endpoints bind to localhost only:
 Grafana:    http://127.0.0.1:3000
 Prometheus: http://127.0.0.1:9090
 Loki:       http://127.0.0.1:3100
+OTLP gRPC:  127.0.0.1:4317
+OTLP HTTP:  http://127.0.0.1:4318
 ```
 
 Grafana credentials are written to `~/.config/openclaw-observability/grafana.env`. Set `GRAFANA_ADMIN_PASSWORD` before install or config refresh to choose the password yourself:
@@ -276,7 +278,16 @@ Grafana credentials are written to `~/.config/openclaw-observability/grafana.env
 GRAFANA_ADMIN_PASSWORD='CHANGE_ME' ./oc.sh observability install
 ```
 
-The generated Grafana dashboard includes Podman container state, CPU, memory, and logs for the OpenClaw containers. Prometheus also scrapes Grafana Alloy, Loki, Prometheus, and podman-exporter metrics.
+The generated Grafana dashboard includes Podman container state, CPU, memory, container logs, and OTLP logs. Prometheus also scrapes Grafana Alloy, Loki, Prometheus, and podman-exporter metrics. OTLP metrics sent to Alloy are converted to Prometheus samples and remote-written into local Prometheus.
+
+Point OpenTelemetry clients at the local Alloy receiver:
+
+```bash
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318
+export OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
+```
+
+For gRPC clients, use `http://127.0.0.1:4317`. OTLP logs are available in Grafana Explore with `{job="otel-logs"}`. Traces are not stored by this stack because it does not install a trace backend.
 
 If you installed an earlier version of this branch and Grafana shows `Failed to fetch` or empty panels, refresh the installed units/config and restart the managed containers so the fixed podman-exporter options and file logging are applied:
 
@@ -496,7 +507,7 @@ The observability purge deletes `~/.config/openclaw-observability` and `~/.local
 - Do not expose Chrome CDP to the public internet.
 - Do not expose LiteLLM port `4000` beyond host loopback unless you have explicit auth, TLS, and network policy.
 - Do not expose SearXNG port `8080` beyond host loopback unless you have reviewed production hardening and abuse controls.
-- Do not expose Grafana, Prometheus, Loki, Alloy, or podman-exporter ports beyond host loopback without explicit auth, TLS, and network policy.
+- Do not expose Grafana, Prometheus, Loki, Alloy, OTLP, or podman-exporter ports beyond host loopback without explicit auth, TLS, and network policy.
 - Do not commit real `openclaw.json` files if they contain auth profiles, tokens, API keys, or local machine secrets.
 - Do not commit `~/.config/openclaw-gateway/gateway.env`; it contains runtime secrets such as `OPENCLAW_GATEWAY_TOKEN`, `DISCORD_BOT_TOKEN`, `LITELLM_API_KEY`, and `SEARXNG_BASE_URL`.
 - Do not commit `~/.config/litellm/litellm.env`; it contains the LiteLLM master key.

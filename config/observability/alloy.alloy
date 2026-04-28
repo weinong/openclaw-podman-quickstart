@@ -10,6 +10,66 @@ loki.source.file "podman_logs" {
   forward_to = [loki.write.local.receiver]
 }
 
+otelcol.receiver.otlp "local" {
+  grpc {
+    endpoint = "0.0.0.0:4317"
+  }
+
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+
+  output {
+    metrics = [otelcol.processor.batch.otel.input]
+    logs    = [otelcol.processor.attributes.otel_logs.input]
+  }
+}
+
+otelcol.processor.attributes "otel_logs" {
+  action {
+    key    = "job"
+    action = "insert"
+    value  = "otel-logs"
+  }
+
+  action {
+    key    = "loki.attribute.labels"
+    action = "insert"
+    value  = "job"
+  }
+
+  action {
+    key    = "loki.resource.labels"
+    action = "insert"
+    value  = "service.name, service.namespace"
+  }
+
+  output {
+    logs = [otelcol.processor.batch.otel.input]
+  }
+}
+
+otelcol.processor.batch "otel" {
+  output {
+    metrics = [otelcol.exporter.prometheus.otel.input]
+    logs    = [otelcol.exporter.loki.otel.input]
+  }
+}
+
+otelcol.exporter.prometheus "otel" {
+  forward_to = [prometheus.remote_write.otel.receiver]
+}
+
+prometheus.remote_write "otel" {
+  endpoint {
+    url = "http://127.0.0.1:9090/api/v1/write"
+  }
+}
+
+otelcol.exporter.loki "otel" {
+  forward_to = [loki.write.local.receiver]
+}
+
 loki.write "local" {
   endpoint {
     url = "http://127.0.0.1:3100/loki/api/v1/push"
