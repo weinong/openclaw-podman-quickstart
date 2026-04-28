@@ -1679,6 +1679,13 @@ main() {
           [[ $# -eq 0 ]] || die "observability status does not accept extra arguments: $*"
           systemctl_user status "${observability_services[@]}" --no-pager
           ;;
+        doctor)
+          parse_common_flags "$@"
+          assert_openclaw_user "${allow_current_user}"
+          set -- "${remaining_args[@]}"
+          [[ $# -eq 0 ]] || die "observability doctor does not accept extra arguments: $*"
+          doctor_observability
+          ;;
         logs)
           parse_common_flags "$@"
           assert_openclaw_user "${allow_current_user}"
