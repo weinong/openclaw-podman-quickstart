@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
+
+exec /usr/bin/podman run --rm \
+  --name openclaw-podman-exporter \
+  --pod openclaw-observability \
+  -e CONTAINER_HOST=unix:///run/podman/podman.sock \
+  -v "${runtime_dir}/podman/podman.sock:/run/podman/podman.sock:ro" \
+  --userns=keep-id:uid=65534 \
+  --security-opt label=disable \
+  __PODMAN_EXPORTER_IMAGE__ \
+  --collector.enable-all \
+  --web.listen-address=:9882

@@ -15,7 +15,9 @@ state/
 .local/share/litellm/
 .config/litellm/litellm.env
 .config/openclaw-gateway/gateway.env
+.config/openclaw-observability/grafana.env
 .config/searxng/settings.yml
+.local/share/openclaw-observability/
 
 # Editors
 .vscode/

@@ -28,6 +28,7 @@ The goals are:
 - A SearXNG sidecar for local web search.
 - An optional OpenClaw gateway container skeleton.
 - Optional Discord channel bootstrap.
+- Optional Grafana, Prometheus, Loki, Alloy, and podman-exporter observability stack.
 
 ## Admin prep
 
@@ -245,6 +246,55 @@ Refresh SearXNG config:
 
 `./oc.sh config searxng` installs the bundled SearXNG settings template when missing, enables OpenClaw's bundled SearXNG plugin, and points it at the local sidecar.
 
+## Observability Stack
+
+Install the optional local observability stack when you want dashboards, metrics, and container logs:
+
+```bash
+./oc.sh observability install
+```
+
+This installs and starts:
+
+- Grafana for dashboards.
+- Prometheus for metrics storage and scraping.
+- Loki for log storage and queries.
+- Grafana Alloy for collecting Podman container logs.
+- podman-exporter for Podman pod/container/image/volume/network metrics.
+
+Runtime endpoints bind to localhost only:
+
+```text
+Grafana:    http://127.0.0.1:3000
+Prometheus: http://127.0.0.1:9090
+Loki:       http://127.0.0.1:3100
+```
+
+Grafana credentials are written to `~/.config/openclaw-observability/grafana.env`. Set `GRAFANA_ADMIN_PASSWORD` before install or config refresh to choose the password yourself:
+
+```bash
+GRAFANA_ADMIN_PASSWORD='CHANGE_ME' ./oc.sh observability install
+```
+
+The generated Grafana dashboard includes Podman container state, CPU, memory, and logs for the OpenClaw containers. Prometheus also scrapes Grafana Alloy, Loki, Prometheus, and podman-exporter metrics.
+
+Manage the stack independently from the core OpenClaw services:
+
+```bash
+./oc.sh start observability
+./oc.sh observability status
+./oc.sh observability logs
+./oc.sh observability doctor
+./oc.sh observability restart
+```
+
+Refresh bundled observability config without reinstalling units:
+
+```bash
+./oc.sh observability config
+./oc.sh observability restart
+```
+
 ## Persistent Browser
 
 Validate Chromium CDP:
@@ -315,6 +365,11 @@ DISCORD_BOT_TOKEN_CODING='YOUR_CODING_BOT_TOKEN' \
 ./oc.sh config litellm
 ./oc.sh config searxng
 ./oc.sh config discord --dm-user ID --guild ID
+./oc.sh observability install
+./oc.sh observability status
+./oc.sh observability doctor
+./oc.sh observability uninstall
+./oc.sh start observability
 ./oc.sh start browser|litellm|searxng|gateway|pod|all
 ./oc.sh stop browser|litellm|searxng|gateway|pod|all
 ./oc.sh restart browser|litellm|searxng|gateway|pod|all
@@ -343,6 +398,11 @@ openclaw-gateway ghcr.io/openclaw/openclaw 2026.4.24 sha256:7c4370ff8777555d4c9f
 openclaw-browser docker.io/chromedp/headless-shell 148.0.7778.56 sha256:8b36bc4bca3f394103db8a2e60f0053969a277b3918abc39acfee819168c4f79
 litellm docker.litellm.ai/berriai/litellm main-v1.82.3 sha256:067aee932b8770ed42955ee802a04abdcd369d0995b5e696bb07d6520a231b1c
 searxng docker.io/searxng/searxng 2026.4.24-a7ac696b4 sha256:c9100c29c14a77d5289263a671580226c3b8a396a1a0130d2f500f57076a0119
+grafana docker.io/grafana/grafana-oss 12.4.3 sha256:2e986801428cd689c2358605289c90ab37d2b39e24808874971f54c99bcdc412
+prometheus docker.io/prom/prometheus v3.11.3 sha256:e4254400b85610324913f0dc4acf92603d9984e7519414c5a12811aa6146acc3
+loki docker.io/grafana/loki 3.5.8 sha256:00981fd9455db8589c3aa6d06744af3138c4b2c32fdec62101e92c7a704b2642
+alloy docker.io/grafana/alloy v1.16.0 sha256:6e00cf7c5a692ff5f24844529416ed017d76fce922f8199004e73d5eca46b6b8
+podman-exporter quay.io/navidys/prometheus-podman-exporter v1.21.0 sha256:2ebb9e09101d8cc1e28e3f306b56a722450918e628208435201ed39bd62403cb
 ```
 
 ## Uninstall
@@ -363,6 +423,15 @@ Also remove generated config, credentials, browser data, and LiteLLM token cache
 
 `--purge` deletes `~/.openclaw`, `~/.config/openclaw-gateway`, `~/.config/litellm`, `~/.config/searxng`, `~/.local/share/openclaw-browser`, and `~/.local/share/litellm`.
 
+Observability has a separate uninstall path:
+
+```bash
+./oc.sh observability uninstall
+./oc.sh observability uninstall --purge --yes
+```
+
+The observability purge deletes `~/.config/openclaw-observability` and `~/.local/share/openclaw-observability`.
+
 ## Layout
 
 ```text
@@ -371,14 +440,25 @@ Also remove generated config, credentials, browser data, and LiteLLM token cache
 │   ├── litellm/
 │   │   ├── config.yaml
 │   │   └── litellm.env.example
+│   ├── observability/
+│   │   ├── alloy.alloy
+│   │   ├── grafana/
+│   │   ├── loki.yml
+│   │   └── prometheus.yml
 │   └── searxng/
 │       └── settings.yml
 ├── deploy/
 │   ├── openclaw/
+│   │   ├── alloy.container
+│   │   ├── grafana.container
 │   │   ├── litellm.container
+│   │   ├── loki.container
 │   │   ├── openclaw.pod
+│   │   ├── openclaw-observability.pod
 │   │   ├── openclaw-browser.container
 │   │   ├── openclaw-gateway.container
+│   │   ├── podman-exporter.container
+│   │   ├── prometheus.container
 │   │   └── searxng.container
 │   └── openclaw-systemd/
 │       ├── openclaw-pod.service
@@ -386,6 +466,7 @@ Also remove generated config, credentials, browser data, and LiteLLM token cache
 │       ├── litellm.service
 │       ├── searxng.service
 │       ├── openclaw-gateway.service
+│       ├── openclaw-observability-pod.service
 │       └── bin/
 ├── docs/
 │   ├── bootstrap.md
@@ -404,10 +485,13 @@ Also remove generated config, credentials, browser data, and LiteLLM token cache
 - Do not expose Chrome CDP to the public internet.
 - Do not expose LiteLLM port `4000` beyond host loopback unless you have explicit auth, TLS, and network policy.
 - Do not expose SearXNG port `8080` beyond host loopback unless you have reviewed production hardening and abuse controls.
+- Do not expose Grafana, Prometheus, Loki, Alloy, or podman-exporter ports beyond host loopback without explicit auth, TLS, and network policy.
 - Do not commit real `openclaw.json` files if they contain auth profiles, tokens, API keys, or local machine secrets.
 - Do not commit `~/.config/openclaw-gateway/gateway.env`; it contains runtime secrets such as `OPENCLAW_GATEWAY_TOKEN`, `DISCORD_BOT_TOKEN`, `LITELLM_API_KEY`, and `SEARXNG_BASE_URL`.
 - Do not commit `~/.config/litellm/litellm.env`; it contains the LiteLLM master key.
+- Do not commit `~/.config/openclaw-observability/grafana.env`; it contains the Grafana admin password.
 - Do not commit `~/.config/searxng/settings.yml`; it contains the generated SearXNG `server.secret_key`.
+- Do not commit `~/.local/share/openclaw-observability`; it contains local metrics, logs, and Grafana state.
 - Do not commit `~/.local/share/litellm/github_copilot`; it contains OAuth-derived Copilot credentials.
 - Do not commit `~/.local/share/litellm/chatgpt`; it contains OAuth-derived ChatGPT credentials.
 - This repo intentionally avoids snapshotting runtime state.

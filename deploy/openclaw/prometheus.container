@@ -1,0 +1,21 @@
+[Unit]
+Description=Prometheus metrics store for OpenClaw observability
+After=openclaw-observability-pod.service podman-exporter.service
+Requires=openclaw-observability-pod.service podman-exporter.service
+
+[Container]
+Pod=openclaw-observability.pod
+Image=__PROMETHEUS_IMAGE__
+ContainerName=openclaw-prometheus
+User=0:0
+Volume=%h/.config/openclaw-observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro,Z
+Volume=%h/.local/share/openclaw-observability/prometheus:/prometheus:Z
+Exec=--config.file=/etc/prometheus/prometheus.yml --storage.tsdb.path=/prometheus --storage.tsdb.retention.time=15d --web.listen-address=0.0.0.0:9090
+
+[Service]
+Restart=always
+RestartSec=5
+TimeoutStartSec=300
+
+[Install]
+WantedBy=default.target

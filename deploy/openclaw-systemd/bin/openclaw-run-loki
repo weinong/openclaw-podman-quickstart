@@ -1,0 +1,11 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+exec /usr/bin/podman run --rm \
+  --name openclaw-loki \
+  --pod openclaw-observability \
+  --user 0:0 \
+  -v "${HOME}/.config/openclaw-observability/loki.yml:/etc/loki/config.yml:ro,Z" \
+  -v "${HOME}/.local/share/openclaw-observability/loki:/loki:Z" \
+  __LOKI_IMAGE__ \
+  -config.file=/etc/loki/config.yml

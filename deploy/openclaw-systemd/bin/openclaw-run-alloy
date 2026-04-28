@@ -1,0 +1,14 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+exec /usr/bin/podman run --rm \
+  --name openclaw-alloy \
+  --pod openclaw-observability \
+  --user 0:0 \
+  -v "${HOME}/.config/openclaw-observability/alloy.alloy:/etc/alloy/config.alloy:ro,Z" \
+  -v "${HOME}/.local/share/containers/storage/overlay-containers:/var/lib/containers/storage/overlay-containers:ro" \
+  -v "${HOME}/.local/share/openclaw-observability/alloy:/var/lib/alloy:Z" \
+  __ALLOY_IMAGE__ \
+  run --server.http.listen-addr=0.0.0.0:12345 \
+  --storage.path=/var/lib/alloy \
+  /etc/alloy/config.alloy

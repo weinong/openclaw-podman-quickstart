@@ -1,0 +1,12 @@
+[Unit]
+Description=OpenClaw observability Podman pod
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -lc 'podman pod exists openclaw-observability || podman pod create --name openclaw-observability -p 127.0.0.1:3000:3000 -p 127.0.0.1:9090:9090 -p 127.0.0.1:3100:3100'
+ExecStop=/bin/sh -lc 'podman pod stop openclaw-observability || true'
+ExecStopPost=/bin/sh -lc 'podman pod rm -f openclaw-observability || true'
+
+[Install]
+WantedBy=default.target

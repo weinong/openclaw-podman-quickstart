@@ -1,0 +1,15 @@
+[Unit]
+Description=Loki log store for OpenClaw observability
+After=openclaw-observability-pod.service
+Requires=openclaw-observability-pod.service
+
+[Service]
+Restart=always
+RestartSec=5
+TimeoutStartSec=300
+ExecStartPre=-/usr/bin/podman rm -f openclaw-loki
+ExecStart=%h/.local/bin/openclaw-run-loki
+ExecStop=/usr/bin/podman stop openclaw-loki
+
+[Install]
+WantedBy=default.target
