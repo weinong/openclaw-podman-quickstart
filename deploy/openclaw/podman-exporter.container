@@ -9,8 +9,8 @@ Image=__PODMAN_EXPORTER_IMAGE__
 ContainerName=openclaw-podman-exporter
 Environment=CONTAINER_HOST=unix:///run/podman/podman.sock
 Volume=%t/podman/podman.sock:/run/podman/podman.sock:ro
-PodmanArgs=--userns=keep-id:uid=65534 --security-opt label=disable
-Exec=--collector.enable-all --web.listen-address=:9882
+PodmanArgs=--security-opt label=disable
+Exec=--collector.enable-all --collector.enhance-metrics --web.listen-address=:9882
 
 [Service]
 Restart=always

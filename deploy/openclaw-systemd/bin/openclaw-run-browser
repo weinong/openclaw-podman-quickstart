@@ -4,6 +4,7 @@ set -euo pipefail
 exec /usr/bin/podman run --rm \
   --name openclaw-browser \
   --pod openclaw \
+  --log-driver=k8s-file \
   --shm-size=2g \
   -v "${HOME}/.local/share/openclaw-browser:/data:Z" \
   __OPENCLAW_BROWSER_IMAGE__

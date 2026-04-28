@@ -278,6 +278,17 @@ GRAFANA_ADMIN_PASSWORD='CHANGE_ME' ./oc.sh observability install
 
 The generated Grafana dashboard includes Podman container state, CPU, memory, and logs for the OpenClaw containers. Prometheus also scrapes Grafana Alloy, Loki, Prometheus, and podman-exporter metrics.
 
+If you installed an earlier version of this branch and Grafana shows `Failed to fetch` or empty panels, refresh the installed units/config and restart the managed containers so the fixed podman-exporter options and file logging are applied:
+
+```bash
+./oc.sh config openclaw
+./oc.sh observability config
+./oc.sh install fallback --start-gateway
+./oc.sh observability install fallback
+```
+
+Use `quadlet` instead of `fallback` if this host is using Quadlet `.pod` support.
+
 Manage the stack independently from the core OpenClaw services:
 
 ```bash

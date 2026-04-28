@@ -7,6 +7,7 @@ Requires=openclaw-pod.service
 Pod=openclaw.pod
 Image=__LITELLM_IMAGE__
 ContainerName=openclaw-litellm
+PodmanArgs=--log-driver=k8s-file
 EnvironmentFile=%h/.config/litellm/litellm.env
 Environment=GITHUB_COPILOT_TOKEN_DIR=/data/github_copilot
 Environment=CHATGPT_TOKEN_DIR=/data/chatgpt

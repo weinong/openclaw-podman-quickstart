@@ -1429,7 +1429,8 @@ doctor_observability() {
     curl -fsS http://127.0.0.1:3000/api/health | jq . || true
     curl -fsS http://127.0.0.1:9090/-/ready || true
     curl -fsS http://127.0.0.1:3100/ready || true
-    curl -fsS http://127.0.0.1:9882/metrics >/dev/null && echo "podman-exporter metrics endpoint OK" || true
+    curl -fsS http://127.0.0.1:9090/api/v1/targets \
+      | jq '.data.activeTargets[] | {job: .labels.job, health: .health, scrapeUrl: .scrapeUrl, lastError: .lastError}' || true
   else
     echo "curl is not installed."
   fi
