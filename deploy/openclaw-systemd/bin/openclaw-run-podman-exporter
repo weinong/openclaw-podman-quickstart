@@ -6,6 +6,7 @@ runtime_dir="${XDG_RUNTIME_DIR:-/run/user/$(id -u)}"
 exec /usr/bin/podman run --rm \
   --name openclaw-podman-exporter \
   --pod openclaw-observability \
+  --user 0:0 \
   -e CONTAINER_HOST=unix:///run/podman/podman.sock \
   -v "${runtime_dir}/podman/podman.sock:/run/podman/podman.sock:ro" \
   --security-opt label=disable \

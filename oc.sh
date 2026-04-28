@@ -1424,6 +1424,10 @@ doctor_observability() {
   systemctl_user status "${observability_services[@]}" --no-pager || true
 
   echo
+  echo "== recent observability logs =="
+  journalctl --user -u "${observability_services[@]}" --no-pager -n 80 || true
+
+  echo
   echo "== observability endpoints =="
   if command -v curl >/dev/null 2>&1; then
     curl -fsS http://127.0.0.1:3000/api/health | jq . || true
