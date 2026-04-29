@@ -716,6 +716,13 @@ remove_internal_network_assets_if_unused() {
   fi
 }
 
+ensure_internal_network_runtime() {
+  need_cmd podman
+  if ! podman network exists "${openclaw_internal_network}" >/dev/null 2>&1; then
+    podman network create --internal "${openclaw_internal_network}" >/dev/null
+  fi
+}
+
 env_suffix() {
   local value="$1"
   local suffix
@@ -1240,7 +1247,8 @@ configure_observability_stack() {
 
 start_core_services() {
   systemctl_user daemon-reload
-  systemctl_user start openclaw-internal-network.service
+  ensure_internal_network_runtime
+  systemctl_user restart openclaw-internal-network.service
   systemctl_user start "${core_services[@]}"
 }
 
@@ -1278,7 +1286,8 @@ install_auto() {
 start_observability_services() {
   systemctl_user start podman.socket
   systemctl_user daemon-reload
-  systemctl_user start openclaw-internal-network.service
+  ensure_internal_network_runtime
+  systemctl_user restart openclaw-internal-network.service
   systemctl_user start "${observability_services[@]}"
 }
 
