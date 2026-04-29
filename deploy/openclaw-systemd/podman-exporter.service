@@ -1,0 +1,15 @@
+[Unit]
+Description=Podman metrics exporter for OpenClaw observability
+After=openclaw-observability-pod.service podman.socket
+Requires=openclaw-observability-pod.service podman.socket
+
+[Service]
+Restart=always
+RestartSec=5
+TimeoutStartSec=300
+ExecStartPre=-/usr/bin/podman rm -f openclaw-podman-exporter
+ExecStart=%h/.local/bin/openclaw-run-podman-exporter
+ExecStop=/usr/bin/podman stop openclaw-podman-exporter
+
+[Install]
+WantedBy=default.target

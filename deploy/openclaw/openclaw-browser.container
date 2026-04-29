@@ -9,7 +9,7 @@ Image=__OPENCLAW_BROWSER_IMAGE__
 ContainerName=openclaw-browser
 ShmSize=2g
 Volume=%h/.local/share/openclaw-browser:/data:Z
-PodmanArgs=--init
+PodmanArgs=--init --log-driver=k8s-file
 
 [Service]
 Restart=always

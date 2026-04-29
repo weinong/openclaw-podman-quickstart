@@ -7,6 +7,7 @@ Requires=openclaw-pod.service
 Pod=openclaw.pod
 Image=__SEARXNG_IMAGE__
 ContainerName=openclaw-searxng
+PodmanArgs=--log-driver=k8s-file
 Environment=SEARXNG_BASE_URL=http://127.0.0.1:8080/
 Environment=UWSGI_WORKERS=4
 Environment=UWSGI_THREADS=4

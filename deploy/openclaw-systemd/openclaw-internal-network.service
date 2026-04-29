@@ -1,0 +1,11 @@
+[Unit]
+Description=OpenClaw internal Podman network
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+ExecStart=/bin/sh -lc 'podman network exists openclaw-internal || podman network create --internal openclaw-internal'
+ExecStop=/bin/sh -lc 'podman network rm openclaw-internal || true'
+
+[Install]
+WantedBy=default.target

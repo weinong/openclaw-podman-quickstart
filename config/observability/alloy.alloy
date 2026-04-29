@@ -1,0 +1,85 @@
+local.file_match "podman_logs" {
+  path_targets = [{
+    "__path__" = "/var/lib/containers/storage/overlay-containers/*/userdata/ctr.log",
+    "job"      = "podman-container-logs",
+  }]
+}
+
+loki.source.file "podman_logs" {
+  targets    = local.file_match.podman_logs.targets
+  forward_to = [loki.write.local.receiver]
+}
+
+otelcol.receiver.otlp "local" {
+  grpc {
+    endpoint = "0.0.0.0:4317"
+  }
+
+  http {
+    endpoint = "0.0.0.0:4318"
+  }
+
+  output {
+    traces  = [otelcol.processor.batch.otel.input]
+    metrics = [otelcol.processor.batch.otel.input]
+    logs    = [otelcol.processor.attributes.otel_logs.input]
+  }
+}
+
+otelcol.processor.attributes "otel_logs" {
+  action {
+    key    = "job"
+    action = "insert"
+    value  = "otel-logs"
+  }
+
+  action {
+    key    = "loki.attribute.labels"
+    action = "insert"
+    value  = "job"
+  }
+
+  action {
+    key    = "loki.resource.labels"
+    action = "insert"
+    value  = "service.name, service.namespace"
+  }
+
+  output {
+    logs = [otelcol.processor.batch.otel.input]
+  }
+}
+
+otelcol.processor.batch "otel" {
+  output {
+    traces  = [otelcol.exporter.file.traces.input]
+    metrics = [otelcol.exporter.prometheus.otel.input]
+    logs    = [otelcol.exporter.loki.otel.input]
+  }
+}
+
+otelcol.exporter.file "traces" {
+  path           = "/var/lib/alloy/otel-traces.jsonl"
+  append         = true
+  flush_interval = "5s"
+}
+
+otelcol.exporter.prometheus "otel" {
+  forward_to = [prometheus.remote_write.otel.receiver]
+}
+
+prometheus.remote_write "otel" {
+  endpoint {
+    url = "http://127.0.0.1:9090/api/v1/write"
+  }
+}
+
+otelcol.exporter.loki "otel" {
+  forward_to = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://127.0.0.1:3100/loki/api/v1/push"
+  }
+}

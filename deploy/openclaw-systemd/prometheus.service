@@ -1,0 +1,15 @@
+[Unit]
+Description=Prometheus metrics store for OpenClaw observability
+After=openclaw-observability-pod.service podman-exporter.service
+Requires=openclaw-observability-pod.service podman-exporter.service
+
+[Service]
+Restart=always
+RestartSec=5
+TimeoutStartSec=300
+ExecStartPre=-/usr/bin/podman rm -f openclaw-prometheus
+ExecStart=%h/.local/bin/openclaw-run-prometheus
+ExecStop=/usr/bin/podman stop openclaw-prometheus
+
+[Install]
+WantedBy=default.target

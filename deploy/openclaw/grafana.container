@@ -1,0 +1,25 @@
+[Unit]
+Description=Grafana dashboard for OpenClaw observability
+After=openclaw-observability-pod.service prometheus.service loki.service
+Requires=openclaw-observability-pod.service prometheus.service loki.service
+
+[Container]
+Pod=openclaw-observability.pod
+Image=__GRAFANA_IMAGE__
+ContainerName=openclaw-grafana
+User=0:0
+EnvironmentFile=%h/.config/openclaw-observability/grafana.env
+Environment=GF_SERVER_HTTP_ADDR=0.0.0.0
+Environment=GF_SERVER_HTTP_PORT=3000
+Environment=GF_AUTH_ANONYMOUS_ENABLED=false
+Volume=%h/.config/openclaw-observability/grafana/provisioning:/etc/grafana/provisioning:ro,Z
+Volume=%h/.config/openclaw-observability/grafana/dashboards:/etc/grafana/dashboards:ro,Z
+Volume=%h/.local/share/openclaw-observability/grafana:/var/lib/grafana:Z
+
+[Service]
+Restart=always
+RestartSec=5
+TimeoutStartSec=300
+
+[Install]
+WantedBy=default.target

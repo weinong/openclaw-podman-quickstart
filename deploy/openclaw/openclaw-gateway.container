@@ -7,6 +7,7 @@ Requires=openclaw-pod.service openclaw-browser.service litellm.service searxng.s
 Pod=openclaw.pod
 Image=__OPENCLAW_GATEWAY_IMAGE__
 ContainerName=openclaw-gateway
+PodmanArgs=--log-driver=k8s-file
 Volume=%h/.openclaw:/home/node/.openclaw:Z
 Volume=%h/.openclaw/workspace:/home/node/.openclaw/workspace:Z
 EnvironmentFile=%h/.config/openclaw-gateway/gateway.env

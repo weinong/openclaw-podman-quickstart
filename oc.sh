@@ -11,6 +11,15 @@ services=(
   openclaw-gateway.service
 )
 
+observability_services=(
+  openclaw-observability-pod.service
+  podman-exporter.service
+  loki.service
+  prometheus.service
+  alloy.service
+  grafana.service
+)
+
 core_services=(
   openclaw-pod.service
   openclaw-browser.service
@@ -23,6 +32,11 @@ image_names=(
   openclaw-browser
   litellm
   searxng
+  grafana
+  prometheus
+  loki
+  alloy
+  podman-exporter
 )
 
 image_refs=(
@@ -30,12 +44,22 @@ image_refs=(
   "docker.io/chromedp/headless-shell:148.0.7778.56@sha256:8b36bc4bca3f394103db8a2e60f0053969a277b3918abc39acfee819168c4f79"
   "docker.litellm.ai/berriai/litellm:main-v1.82.3@sha256:067aee932b8770ed42955ee802a04abdcd369d0995b5e696bb07d6520a231b1c"
   "docker.io/searxng/searxng:2026.4.24-a7ac696b4@sha256:c9100c29c14a77d5289263a671580226c3b8a396a1a0130d2f500f57076a0119"
+  "docker.io/grafana/grafana-oss:12.4.3@sha256:2e986801428cd689c2358605289c90ab37d2b39e24808874971f54c99bcdc412"
+  "docker.io/prom/prometheus:v3.11.3@sha256:e4254400b85610324913f0dc4acf92603d9984e7519414c5a12811aa6146acc3"
+  "docker.io/grafana/loki:3.5.8@sha256:00981fd9455db8589c3aa6d06744af3138c4b2c32fdec62101e92c7a704b2642"
+  "docker.io/grafana/alloy:v1.16.0@sha256:6e00cf7c5a692ff5f24844529416ed017d76fce922f8199004e73d5eca46b6b8"
+  "quay.io/navidys/prometheus-podman-exporter:v1.21.0@sha256:2ebb9e09101d8cc1e28e3f306b56a722450918e628208435201ed39bd62403cb"
 )
 
 openclaw_gateway_image="${image_refs[0]}"
 openclaw_browser_image="${image_refs[1]}"
 litellm_image="${image_refs[2]}"
 searxng_image="${image_refs[3]}"
+grafana_image="${image_refs[4]}"
+prometheus_image="${image_refs[5]}"
+loki_image="${image_refs[6]}"
+alloy_image="${image_refs[7]}"
+podman_exporter_image="${image_refs[8]}"
 
 usage() {
   cat <<'EOF'
@@ -46,6 +70,7 @@ Usage:
   ./oc.sh config file|get|set|unset|openclaw|litellm|searxng|discord [options]
   ./oc.sh start|stop|restart|status [service] [--allow-current-user]
   ./oc.sh logs [service] [--allow-current-user]
+  ./oc.sh observability install|config|start|stop|restart|status|doctor|logs|uninstall [options]
   ./oc.sh images [--json]
   ./oc.sh doctor [--allow-current-user]
 
@@ -69,7 +94,16 @@ Services:
   gateway                 openclaw-gateway.service
   pod                     openclaw-pod.service
   core                    pod, browser, LiteLLM, and SearXNG services
+  observability           Grafana, Prometheus, Loki, Alloy, OTLP, and podman-exporter
   all                     all OpenClaw services
+
+Observability:
+  observability install [fallback|quadlet]
+                           Install and start Grafana, Prometheus, Loki, Alloy,
+                           OTLP, and podman-exporter. Auto-detects Quadlet .pod support.
+  observability config     Install or refresh observability config templates.
+  observability uninstall [--purge --yes|-y]
+                           Remove observability units and containers.
 
 Discord config options:
   --dm-user ID            Allowed Discord DM user. Repeatable.
@@ -93,6 +127,7 @@ Environment:
   SEARXNG_BASE_URL        Default: http://127.0.0.1:8080/
   SEARXNG_CATEGORIES      Default: general,news
   SEARXNG_LANGUAGE        Default: en
+  GRAFANA_ADMIN_PASSWORD  Optional Grafana admin password.
 
 This script is designed to run as the openclaw user after the VM admin has
 created that user and enabled linger. Root execution is refused.
@@ -246,7 +281,7 @@ usage_service() {
   local action="${1:-start}"
   cat <<EOF
 Usage:
-  ./oc.sh ${action} [browser|litellm|searxng|gateway|pod|core|all] [--allow-current-user]
+  ./oc.sh ${action} [browser|litellm|searxng|gateway|pod|core|observability|all] [--allow-current-user]
 
 Run systemctl --user ${action} for one OpenClaw service group. Defaults to all.
 EOF
@@ -255,9 +290,49 @@ EOF
 usage_logs() {
   cat <<'EOF'
 Usage:
-  ./oc.sh logs [browser|litellm|searxng|gateway|pod|core|all] [--allow-current-user]
+  ./oc.sh logs [browser|litellm|searxng|gateway|pod|core|observability|all] [--allow-current-user]
 
 Follow user journal logs for one OpenClaw service group. Defaults to gateway.
+EOF
+}
+
+usage_observability() {
+  cat <<'EOF'
+Usage:
+  ./oc.sh observability install [fallback|quadlet] [--allow-current-user]
+  ./oc.sh observability config [--allow-current-user]
+  ./oc.sh observability start|stop|restart|status [--allow-current-user]
+  ./oc.sh observability doctor [--allow-current-user]
+  ./oc.sh observability logs [--allow-current-user]
+  ./oc.sh observability uninstall [--purge --yes|-y] [--allow-current-user]
+
+Install and manage the optional observability stack:
+  Grafana dashboard: http://127.0.0.1:3000
+  Prometheus:        http://127.0.0.1:9090
+  Loki:              http://127.0.0.1:3100
+  OTLP gRPC:         127.0.0.1:14317
+  OTLP HTTP:         http://127.0.0.1:4318
+  In-pod OTLP HTTP:  http://openclaw-alloy:4318
+
+Commands:
+  install                Create config, install units, and start the stack.
+  config                 Refresh templates and OpenClaw diagnostics OTEL config.
+  start|stop|restart     Manage all observability user services.
+  status                 Show all observability user services.
+  doctor                 Check observability services and local endpoints.
+  logs                   Follow observability user service logs.
+  uninstall              Stop services and remove installed units/helpers only.
+  uninstall --purge --yes|-y
+                         Also remove generated observability config and data.
+
+Options:
+  fallback               Force classic user-systemd fallback units for install.
+  quadlet                Force Quadlet units for install.
+  --allow-current-user   Allow running as a non-openclaw, non-root user.
+
+Environment:
+  GRAFANA_ADMIN_PASSWORD Optional Grafana admin password. If omitted, a password
+                         is generated and stored in ~/.config/openclaw-observability/grafana.env.
 EOF
 }
 
@@ -306,12 +381,22 @@ render_image_template() {
     OPENCLAW_BROWSER_IMAGE="${openclaw_browser_image}" \
     LITELLM_IMAGE="${litellm_image}" \
     SEARXNG_IMAGE="${searxng_image}" \
+    GRAFANA_IMAGE="${grafana_image}" \
+    PROMETHEUS_IMAGE="${prometheus_image}" \
+    LOKI_IMAGE="${loki_image}" \
+    ALLOY_IMAGE="${alloy_image}" \
+    PODMAN_EXPORTER_IMAGE="${podman_exporter_image}" \
     jq -nr --rawfile template "${source}" '
       $template
       | gsub("__OPENCLAW_GATEWAY_IMAGE__"; env.OPENCLAW_GATEWAY_IMAGE)
       | gsub("__OPENCLAW_BROWSER_IMAGE__"; env.OPENCLAW_BROWSER_IMAGE)
       | gsub("__LITELLM_IMAGE__"; env.LITELLM_IMAGE)
       | gsub("__SEARXNG_IMAGE__"; env.SEARXNG_IMAGE)
+      | gsub("__GRAFANA_IMAGE__"; env.GRAFANA_IMAGE)
+      | gsub("__PROMETHEUS_IMAGE__"; env.PROMETHEUS_IMAGE)
+      | gsub("__LOKI_IMAGE__"; env.LOKI_IMAGE)
+      | gsub("__ALLOY_IMAGE__"; env.ALLOY_IMAGE)
+      | gsub("__PODMAN_EXPORTER_IMAGE__"; env.PODMAN_EXPORTER_IMAGE)
     ' > "${tmp}"
 
   if grep -q '__[A-Z0-9_]*_IMAGE__' "${tmp}"; then
@@ -393,6 +478,11 @@ parse_common_flags() {
 openclaw_config="${HOME}/.openclaw/openclaw.json"
 gateway_env="${HOME}/.config/openclaw-gateway/gateway.env"
 litellm_env="${HOME}/.config/litellm/litellm.env"
+observability_dir="${HOME}/.config/openclaw-observability"
+observability_data_dir="${HOME}/.local/share/openclaw-observability"
+grafana_env="${observability_dir}/grafana.env"
+openclaw_internal_network="openclaw-internal"
+openclaw_alloy_otlp_endpoint="http://openclaw-alloy:4318"
 
 ensure_user_dirs() {
   mkdir -p \
@@ -434,6 +524,24 @@ replace_env_value() {
   printf '%s=%s\n' "${key}" "${value}" >> "${tmp}"
   install -m 0600 "${tmp}" "${file}"
   rm -f "${tmp}"
+}
+
+install_tree() {
+  local source_dir="$1"
+  local dest_dir="$2"
+  local file_mode="$3"
+  local dir file rel
+
+  mkdir -p "${dest_dir}"
+  while IFS= read -r -d '' dir; do
+    rel="${dir#"${source_dir}"}"
+    mkdir -p "${dest_dir}${rel}"
+  done < <(find "${source_dir}" -type d -print0)
+
+  while IFS= read -r -d '' file; do
+    rel="${file#"${source_dir}/"}"
+    install -m "${file_mode}" "${file}" "${dest_dir}/${rel}"
+  done < <(find "${source_dir}" -type f -print0)
 }
 
 env_file_value() {
@@ -567,6 +675,52 @@ config_unset_path() {
 
 config_set_json() {
   config_set_path "$1" "$2" true "${3:-false}"
+}
+
+config_observability_openclaw() {
+  need_cmd jq
+  ensure_user_dirs
+  ensure_openclaw_config_file
+
+  config_set_json "diagnostics.enabled" "true"
+  config_set_json "diagnostics.otel.enabled" "true"
+  config_set_path "diagnostics.otel.endpoint" "${openclaw_alloy_otlp_endpoint}"
+  config_set_path "diagnostics.otel.protocol" "http/protobuf"
+  config_set_path "diagnostics.otel.serviceName" "openclaw-gateway"
+  config_set_json "diagnostics.otel.traces" "true"
+  config_set_json "diagnostics.otel.metrics" "true"
+  config_set_json "diagnostics.otel.logs" "true"
+  config_set_json "diagnostics.otel.sampleRate" "0.2"
+  config_set_json "diagnostics.otel.flushIntervalMs" "60000"
+  config_set_json "plugins.entries.diagnostics-otel.enabled" "true"
+
+  echo "OpenClaw observability diagnostics updated: ${openclaw_config}"
+  echo "OpenClaw in-pod OTLP endpoint: ${openclaw_alloy_otlp_endpoint}"
+}
+
+remove_internal_network_assets_if_unused() {
+  local core_installed="false"
+  local observability_installed="false"
+
+  if [[ -f "${HOME}/.config/systemd/user/openclaw-pod.service" || -f "${HOME}/.config/containers/systemd/openclaw.pod" ]]; then
+    core_installed="true"
+  fi
+  if [[ -f "${HOME}/.config/systemd/user/openclaw-observability-pod.service" || -f "${HOME}/.config/containers/systemd/openclaw-observability.pod" ]]; then
+    observability_installed="true"
+  fi
+
+  if [[ "${core_installed}" == "false" && "${observability_installed}" == "false" ]]; then
+    rm -f \
+      "${HOME}/.config/systemd/user/openclaw-internal-network.service" \
+      "${HOME}/.config/containers/systemd/openclaw-internal.network"
+  fi
+}
+
+ensure_internal_network_runtime() {
+  need_cmd podman
+  if ! podman network exists "${openclaw_internal_network}" >/dev/null 2>&1; then
+    podman network create --internal "${openclaw_internal_network}" >/dev/null
+  fi
 }
 
 env_suffix() {
@@ -966,14 +1120,58 @@ service_name() {
     litellm|litellm.service) echo "litellm.service" ;;
     searxng|searxng.service) echo "searxng.service" ;;
     gateway|openclaw-gateway|openclaw-gateway.service) echo "openclaw-gateway.service" ;;
+    grafana|grafana.service) echo "grafana.service" ;;
+    prometheus|prometheus.service) echo "prometheus.service" ;;
+    loki|loki.service) echo "loki.service" ;;
+    alloy|alloy.service) echo "alloy.service" ;;
+    podman-exporter|podman-exporter.service) echo "podman-exporter.service" ;;
+    observability) printf '%s\n' "${observability_services[@]}" ;;
     all) printf '%s\n' "${services[@]}" ;;
     core) printf '%s\n' "${core_services[@]}" ;;
     *) die "unknown service: $1" ;;
   esac
 }
 
+ensure_observability_dirs() {
+  ensure_user_dirs
+  mkdir -p \
+    "${observability_dir}" \
+    "${observability_dir}/grafana" \
+    "${observability_data_dir}" \
+    "${observability_data_dir}/grafana" \
+    "${observability_data_dir}/prometheus" \
+    "${observability_data_dir}/loki" \
+    "${observability_data_dir}/alloy"
+  chmod 0700 "${observability_dir}" "${observability_data_dir}" 2>/dev/null || true
+}
+
+configure_observability() {
+  need_cmd openssl
+  ensure_observability_dirs
+
+  install -m 0644 "${repo_root}/config/observability/prometheus.yml" "${observability_dir}/prometheus.yml"
+  install -m 0644 "${repo_root}/config/observability/loki.yml" "${observability_dir}/loki.yml"
+  install -m 0644 "${repo_root}/config/observability/alloy.alloy" "${observability_dir}/alloy.alloy"
+  install_tree "${repo_root}/config/observability/grafana" "${observability_dir}/grafana" 0644
+
+  local grafana_password="${GRAFANA_ADMIN_PASSWORD:-}"
+  if [[ -z "${grafana_password}" ]]; then
+    grafana_password="$(env_file_value "${grafana_env}" "GF_SECURITY_ADMIN_PASSWORD")"
+  fi
+  if [[ -z "${grafana_password}" ]]; then
+    grafana_password="$(openssl rand -base64 24 | tr -d '\n')"
+  fi
+
+  replace_env_value "${grafana_env}" "GF_SECURITY_ADMIN_USER" "admin"
+  replace_env_value "${grafana_env}" "GF_SECURITY_ADMIN_PASSWORD" "${grafana_password}"
+
+  echo "Observability config installed under ${observability_dir}."
+  echo "Grafana admin credentials stored in ${grafana_env}."
+}
+
 copy_quadlet_units() {
   ensure_user_dirs
+  render_image_template "${repo_root}/deploy/openclaw/openclaw-internal.network" "${HOME}/.config/containers/systemd/openclaw-internal.network" 0644
   render_image_template "${repo_root}/deploy/openclaw/openclaw.pod" "${HOME}/.config/containers/systemd/openclaw.pod" 0644
   render_image_template "${repo_root}/deploy/openclaw/openclaw-browser.container" "${HOME}/.config/containers/systemd/openclaw-browser.container" 0644
   render_image_template "${repo_root}/deploy/openclaw/litellm.container" "${HOME}/.config/containers/systemd/litellm.container" 0644
@@ -981,13 +1179,57 @@ copy_quadlet_units() {
   render_image_template "${repo_root}/deploy/openclaw/openclaw-gateway.container" "${HOME}/.config/containers/systemd/openclaw-gateway.container" 0644
 }
 
+copy_observability_quadlet_units() {
+  ensure_observability_dirs
+  render_image_template "${repo_root}/deploy/openclaw/openclaw-internal.network" "${HOME}/.config/containers/systemd/openclaw-internal.network" 0644
+  render_image_template "${repo_root}/deploy/openclaw/openclaw-observability.pod" "${HOME}/.config/containers/systemd/openclaw-observability.pod" 0644
+  render_image_template "${repo_root}/deploy/openclaw/grafana.container" "${HOME}/.config/containers/systemd/grafana.container" 0644
+  render_image_template "${repo_root}/deploy/openclaw/prometheus.container" "${HOME}/.config/containers/systemd/prometheus.container" 0644
+  render_image_template "${repo_root}/deploy/openclaw/loki.container" "${HOME}/.config/containers/systemd/loki.container" 0644
+  render_image_template "${repo_root}/deploy/openclaw/alloy.container" "${HOME}/.config/containers/systemd/alloy.container" 0644
+  render_image_template "${repo_root}/deploy/openclaw/podman-exporter.container" "${HOME}/.config/containers/systemd/podman-exporter.container" 0644
+}
+
 copy_fallback_units() {
   ensure_user_dirs
   local unit helper
-  for unit in "${repo_root}"/deploy/openclaw-systemd/*.service; do
+  for unit in \
+    "${repo_root}/deploy/openclaw-systemd/openclaw-internal-network.service" \
+    "${repo_root}/deploy/openclaw-systemd/openclaw-pod.service" \
+    "${repo_root}/deploy/openclaw-systemd/openclaw-browser.service" \
+    "${repo_root}/deploy/openclaw-systemd/openclaw-gateway.service" \
+    "${repo_root}/deploy/openclaw-systemd/litellm.service" \
+    "${repo_root}/deploy/openclaw-systemd/searxng.service"; do
     render_image_template "${unit}" "${HOME}/.config/systemd/user/$(basename "${unit}")" 0644
   done
-  for helper in "${repo_root}"/deploy/openclaw-systemd/bin/*; do
+  for helper in \
+    "${repo_root}/deploy/openclaw-systemd/bin/openclaw-run-browser" \
+    "${repo_root}/deploy/openclaw-systemd/bin/openclaw-run-gateway" \
+    "${repo_root}/deploy/openclaw-systemd/bin/openclaw-run-litellm" \
+    "${repo_root}/deploy/openclaw-systemd/bin/openclaw-run-searxng"; do
+    render_image_template "${helper}" "${HOME}/.local/bin/$(basename "${helper}")" 0755
+  done
+}
+
+copy_observability_fallback_units() {
+  ensure_observability_dirs
+  local unit helper
+  for unit in \
+    "${repo_root}/deploy/openclaw-systemd/openclaw-internal-network.service" \
+    "${repo_root}/deploy/openclaw-systemd/openclaw-observability-pod.service" \
+    "${repo_root}/deploy/openclaw-systemd/grafana.service" \
+    "${repo_root}/deploy/openclaw-systemd/prometheus.service" \
+    "${repo_root}/deploy/openclaw-systemd/loki.service" \
+    "${repo_root}/deploy/openclaw-systemd/alloy.service" \
+    "${repo_root}/deploy/openclaw-systemd/podman-exporter.service"; do
+    render_image_template "${unit}" "${HOME}/.config/systemd/user/$(basename "${unit}")" 0644
+  done
+  for helper in \
+    "${repo_root}/deploy/openclaw-systemd/bin/openclaw-run-grafana" \
+    "${repo_root}/deploy/openclaw-systemd/bin/openclaw-run-prometheus" \
+    "${repo_root}/deploy/openclaw-systemd/bin/openclaw-run-loki" \
+    "${repo_root}/deploy/openclaw-systemd/bin/openclaw-run-alloy" \
+    "${repo_root}/deploy/openclaw-systemd/bin/openclaw-run-podman-exporter"; do
     render_image_template "${helper}" "${HOME}/.local/bin/$(basename "${helper}")" 0755
   done
 }
@@ -998,8 +1240,15 @@ configure_core() {
   config_searxng
 }
 
+configure_observability_stack() {
+  configure_observability
+  config_observability_openclaw
+}
+
 start_core_services() {
   systemctl_user daemon-reload
+  ensure_internal_network_runtime
+  systemctl_user restart openclaw-internal-network.service
   systemctl_user start "${core_services[@]}"
 }
 
@@ -1034,6 +1283,38 @@ install_auto() {
   fi
 }
 
+start_observability_services() {
+  systemctl_user start podman.socket
+  systemctl_user daemon-reload
+  ensure_internal_network_runtime
+  systemctl_user restart openclaw-internal-network.service
+  systemctl_user start "${observability_services[@]}"
+}
+
+install_observability_fallback() {
+  configure_observability_stack
+  copy_observability_fallback_units
+  start_observability_services
+  echo "Installed Podman 4.9-compatible observability user-systemd units."
+}
+
+install_observability_quadlet() {
+  configure_observability_stack
+  copy_observability_quadlet_units
+  start_observability_services
+  echo "Installed observability Quadlet units."
+}
+
+install_observability_auto() {
+  if quadlet_pod_supported; then
+    echo "Detected Quadlet .pod support; using quadlet observability installer."
+    install_observability_quadlet
+  else
+    echo "Quadlet .pod support not detected; using fallback observability installer."
+    install_observability_fallback
+  fi
+}
+
 stop_openclaw_runtime() {
   systemctl_user stop "${services[@]}" >/dev/null 2>&1 || true
 
@@ -1044,6 +1325,24 @@ stop_openclaw_runtime() {
       openclaw-litellm \
       openclaw-browser >/dev/null 2>&1 || true
     podman pod rm -f openclaw >/dev/null 2>&1 || true
+    podman network rm "${openclaw_internal_network}" >/dev/null 2>&1 || true
+  fi
+}
+
+stop_observability_runtime() {
+  systemctl_user stop "${observability_services[@]}" >/dev/null 2>&1 || true
+
+  if command -v podman >/dev/null 2>&1; then
+    podman rm -f \
+      openclaw-grafana \
+      openclaw-prometheus \
+      openclaw-loki \
+      openclaw-alloy \
+      openclaw-podman-exporter >/dev/null 2>&1 || true
+    podman pod rm -f openclaw-observability >/dev/null 2>&1 || true
+    if ! podman pod exists openclaw >/dev/null 2>&1; then
+      podman network rm "${openclaw_internal_network}" >/dev/null 2>&1 || true
+    fi
   fi
 }
 
@@ -1072,6 +1371,7 @@ uninstall_openclaw() {
     "${HOME}/.local/bin/openclaw-run-gateway" \
     "${HOME}/.local/bin/openclaw-run-litellm" \
     "${HOME}/.local/bin/openclaw-run-searxng"
+  remove_internal_network_assets_if_unused
 
   systemctl_user daemon-reload >/dev/null 2>&1 || true
   systemctl_user reset-failed "${services[@]}" >/dev/null 2>&1 || true
@@ -1088,6 +1388,48 @@ uninstall_openclaw() {
   else
     echo "Uninstalled OpenClaw services, units, and helper scripts."
     echo "Generated config and data were kept. To remove them: ./oc.sh uninstall --purge --yes"
+  fi
+}
+
+uninstall_observability() {
+  local purge="$1"
+  local yes="$2"
+
+  if [[ "${purge}" == "true" && "${yes}" != "true" ]]; then
+    die "--purge deletes generated observability config and data; rerun with --purge --yes"
+  fi
+
+  stop_observability_runtime
+
+  rm -f \
+    "${HOME}/.config/systemd/user/openclaw-observability-pod.service" \
+    "${HOME}/.config/systemd/user/grafana.service" \
+    "${HOME}/.config/systemd/user/prometheus.service" \
+    "${HOME}/.config/systemd/user/loki.service" \
+    "${HOME}/.config/systemd/user/alloy.service" \
+    "${HOME}/.config/systemd/user/podman-exporter.service" \
+    "${HOME}/.config/containers/systemd/openclaw-observability.pod" \
+    "${HOME}/.config/containers/systemd/grafana.container" \
+    "${HOME}/.config/containers/systemd/prometheus.container" \
+    "${HOME}/.config/containers/systemd/loki.container" \
+    "${HOME}/.config/containers/systemd/alloy.container" \
+    "${HOME}/.config/containers/systemd/podman-exporter.container" \
+    "${HOME}/.local/bin/openclaw-run-grafana" \
+    "${HOME}/.local/bin/openclaw-run-prometheus" \
+    "${HOME}/.local/bin/openclaw-run-loki" \
+    "${HOME}/.local/bin/openclaw-run-alloy" \
+    "${HOME}/.local/bin/openclaw-run-podman-exporter"
+  remove_internal_network_assets_if_unused
+
+  systemctl_user daemon-reload >/dev/null 2>&1 || true
+  systemctl_user reset-failed "${observability_services[@]}" >/dev/null 2>&1 || true
+
+  if [[ "${purge}" == "true" ]]; then
+    rm -rf "${observability_dir}" "${observability_data_dir}"
+    echo "Uninstalled observability services and purged generated config and data."
+  else
+    echo "Uninstalled observability services, units, and helper scripts."
+    echo "Generated observability config and data were kept. To remove them: ./oc.sh observability uninstall --purge --yes"
   fi
 }
 
@@ -1144,6 +1486,29 @@ doctor() {
     openclaw browser --browser-profile default doctor || true
   else
     echo "openclaw CLI is not installed or not in PATH."
+  fi
+}
+
+doctor_observability() {
+  echo "== observability user systemd services =="
+  systemctl_user status "${observability_services[@]}" --no-pager || true
+
+  echo
+  echo "== recent observability logs =="
+  journalctl --user -u "${observability_services[@]}" --no-pager -n 80 || true
+
+  echo
+  echo "== observability endpoints =="
+  if command -v curl >/dev/null 2>&1; then
+    curl -fsS http://127.0.0.1:3000/api/health | jq . || true
+    curl -fsS http://127.0.0.1:9090/-/ready || true
+    curl -fsS http://127.0.0.1:3100/ready || true
+    curl -sS -o /dev/null -w 'OTLP HTTP logs endpoint: HTTP %{http_code}\n' http://127.0.0.1:4318/v1/logs || true
+    echo "In-pod OTLP HTTP endpoint for OpenClaw: ${openclaw_alloy_otlp_endpoint}"
+    curl -fsS http://127.0.0.1:9090/api/v1/targets \
+      | jq '.data.activeTargets[] | {job: .labels.job, health: .health, scrapeUrl: .scrapeUrl, lastError: .lastError}' || true
+  else
+    echo "curl is not installed."
   fi
 }
 
@@ -1327,6 +1692,112 @@ main() {
       set -- "${remaining_args[@]}"
       [[ $# -eq 0 ]] || die "uninstall does not accept extra arguments: $*"
       uninstall_openclaw "${purge}" "${yes}"
+      ;;
+    observability)
+      shift
+      case "${1:-}" in -h|--help|"") usage_observability; exit 0 ;; esac
+      local observability_cmd="${1:-}"
+      shift
+      case "${1:-}" in -h|--help) usage_observability; exit 0 ;; esac
+      case "${observability_cmd}" in
+        install)
+          local mode="auto"
+          local args=()
+          while [[ $# -gt 0 ]]; do
+            case "$1" in
+              fallback|quadlet)
+                mode="$1"
+                shift
+                ;;
+              *)
+                args+=("$1")
+                shift
+                ;;
+            esac
+          done
+          parse_common_flags "${args[@]}"
+          assert_openclaw_user "${allow_current_user}"
+          set -- "${remaining_args[@]}"
+          [[ $# -eq 0 ]] || die "observability install does not accept extra arguments: $*"
+          need_cmd jq
+          need_cmd podman
+          need_cmd systemctl
+          case "${mode}" in
+            auto) install_observability_auto ;;
+            fallback) install_observability_fallback ;;
+            quadlet) install_observability_quadlet ;;
+          esac
+          echo "Grafana is available at http://127.0.0.1:3000"
+          ;;
+        config)
+          parse_common_flags "$@"
+          assert_openclaw_user "${allow_current_user}"
+          set -- "${remaining_args[@]}"
+          [[ $# -eq 0 ]] || die "observability config does not accept extra arguments: $*"
+          configure_observability_stack
+          ;;
+        start|stop|restart)
+          local action="${observability_cmd}"
+          parse_common_flags "$@"
+          assert_openclaw_user "${allow_current_user}"
+          set -- "${remaining_args[@]}"
+          [[ $# -eq 0 ]] || die "observability ${action} does not accept extra arguments: $*"
+          if [[ "${action}" == "start" ]]; then
+            start_observability_services
+          else
+            systemctl_user "${action}" "${observability_services[@]}"
+          fi
+          ;;
+        status)
+          parse_common_flags "$@"
+          assert_openclaw_user "${allow_current_user}"
+          set -- "${remaining_args[@]}"
+          [[ $# -eq 0 ]] || die "observability status does not accept extra arguments: $*"
+          systemctl_user status "${observability_services[@]}" --no-pager
+          ;;
+        doctor)
+          parse_common_flags "$@"
+          assert_openclaw_user "${allow_current_user}"
+          set -- "${remaining_args[@]}"
+          [[ $# -eq 0 ]] || die "observability doctor does not accept extra arguments: $*"
+          doctor_observability
+          ;;
+        logs)
+          parse_common_flags "$@"
+          assert_openclaw_user "${allow_current_user}"
+          set -- "${remaining_args[@]}"
+          [[ $# -eq 0 ]] || die "observability logs does not accept extra arguments: $*"
+          require_user_systemd_bus
+          journalctl --user -u "${observability_services[@]}" -f
+          ;;
+        uninstall)
+          local purge="false"
+          local yes="false"
+          local args=()
+          while [[ $# -gt 0 ]]; do
+            case "$1" in
+              --purge)
+                purge="true"
+                shift
+                ;;
+              --yes|-y)
+                yes="true"
+                shift
+                ;;
+              *)
+                args+=("$1")
+                shift
+                ;;
+            esac
+          done
+          parse_common_flags "${args[@]}"
+          assert_openclaw_user "${allow_current_user}"
+          set -- "${remaining_args[@]}"
+          [[ $# -eq 0 ]] || die "observability uninstall does not accept extra arguments: $*"
+          uninstall_observability "${purge}" "${yes}"
+          ;;
+        *) die "unknown observability command: ${observability_cmd}" ;;
+      esac
       ;;
     images)
       shift

@@ -4,6 +4,7 @@ set -euo pipefail
 exec /usr/bin/podman run --rm \
   --name openclaw-litellm \
   --pod openclaw \
+  --log-driver=k8s-file \
   -e LITELLM_MASTER_KEY \
   -e OPENAI_API_KEY \
   -e ANTHROPIC_API_KEY \

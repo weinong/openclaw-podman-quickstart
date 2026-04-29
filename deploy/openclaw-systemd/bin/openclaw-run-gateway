@@ -4,6 +4,7 @@ set -euo pipefail
 exec /usr/bin/podman run --rm \
   --name openclaw-gateway \
   --pod openclaw \
+  --log-driver=k8s-file \
   --user 0:0 \
   --env-file "${HOME}/.config/openclaw-gateway/gateway.env" \
   -e HOME=/home/node \

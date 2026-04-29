@@ -1,0 +1,15 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+exec /usr/bin/podman run --rm \
+  --name openclaw-prometheus \
+  --pod openclaw-observability \
+  --user 0:0 \
+  -v "${HOME}/.config/openclaw-observability/prometheus.yml:/etc/prometheus/prometheus.yml:ro,Z" \
+  -v "${HOME}/.local/share/openclaw-observability/prometheus:/prometheus:Z" \
+  __PROMETHEUS_IMAGE__ \
+  --config.file=/etc/prometheus/prometheus.yml \
+  --storage.tsdb.path=/prometheus \
+  --storage.tsdb.retention.time=15d \
+  --web.listen-address=0.0.0.0:9090 \
+  --web.enable-remote-write-receiver

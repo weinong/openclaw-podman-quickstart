@@ -1,0 +1,21 @@
+[Unit]
+Description=Loki log store for OpenClaw observability
+After=openclaw-observability-pod.service
+Requires=openclaw-observability-pod.service
+
+[Container]
+Pod=openclaw-observability.pod
+Image=__LOKI_IMAGE__
+ContainerName=openclaw-loki
+User=0:0
+Volume=%h/.config/openclaw-observability/loki.yml:/etc/loki/config.yml:ro,Z
+Volume=%h/.local/share/openclaw-observability/loki:/loki:Z
+Exec=-config.file=/etc/loki/config.yml
+
+[Service]
+Restart=always
+RestartSec=5
+TimeoutStartSec=300
+
+[Install]
+WantedBy=default.target

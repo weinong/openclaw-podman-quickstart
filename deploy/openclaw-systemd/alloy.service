@@ -1,0 +1,15 @@
+[Unit]
+Description=Grafana Alloy log collector for OpenClaw observability
+After=openclaw-observability-pod.service loki.service
+Requires=openclaw-observability-pod.service loki.service
+
+[Service]
+Restart=always
+RestartSec=5
+TimeoutStartSec=300
+ExecStartPre=-/usr/bin/podman rm -f openclaw-alloy
+ExecStart=%h/.local/bin/openclaw-run-alloy
+ExecStop=/usr/bin/podman stop openclaw-alloy
+
+[Install]
+WantedBy=default.target
