@@ -86,10 +86,10 @@ cd openclaw-podman-quickstart
 
 `./oc.sh install` does the full user-owned bootstrap:
 
-- Creates directories under `~/.config`, `~/.local/share`, and `~/.openclaw`.
+- Creates directories under `~/.config`, `~/.local/share`, `~/.openclaw`, and `~/openclaw-workspace`.
 - Creates or patches `~/.openclaw/openclaw.json`.
 - Generates `OPENCLAW_GATEWAY_TOKEN` in `~/.config/openclaw-gateway/gateway.env` and stores a SecretRef in `openclaw.json`.
-- Configures local Gateway mode, token auth, Control UI origins, coding tool profile plus browser access, per-channel-peer DM sessions, and the browser plugin.
+- Configures local Gateway mode, token auth, Control UI origins, the default agent workspace, coding tool profile plus browser access, workspace-only filesystem tools, per-channel-peer DM sessions, and the browser plugin.
 - Configures LiteLLM and writes `~/.config/litellm/litellm.env`.
 - Configures SearXNG and installs `~/.config/searxng/settings.yml` from the bundled template with a generated secret.
 - Installs user systemd units.
@@ -174,6 +174,7 @@ Feature-specific config commands remain available and use `config set`/`unset` i
 That command creates or patches `~/.openclaw/openclaw.json` with:
 
 - Gateway bind mode `lan`, for container bridge networking behind host-loopback Podman port publishing.
+- The default agent workspace `~/openclaw-workspace` with filesystem tools restricted to that workspace.
 - A persistent CDP browser profile at `http://127.0.0.1:9222`.
 - A LiteLLM model provider at `http://127.0.0.1:4000`.
 - The default primary model `litellm/github_copilot/gpt-5.4`.

@@ -174,8 +174,10 @@ OpenClaw and is the default behavior for non-merge writes.
 Targets:
   openclaw
     Creates ~/.openclaw/openclaw.json if missing.
+    Sets the default agent workspace to ~/openclaw-workspace.
     Generates OPENCLAW_GATEWAY_TOKEN in ~/.config/openclaw-gateway/gateway.env.
     Configures local Gateway token auth and Control UI allowed origins.
+    Restricts filesystem tools to the configured workspace.
     Enables the default persistent browser profile at http://127.0.0.1:9222.
     Adds the LiteLLM provider at http://127.0.0.1:4000.
     Sets the default primary model to litellm/github_copilot/gpt-5.4.
@@ -495,7 +497,8 @@ ensure_user_dirs() {
     "${HOME}/.local/share/litellm/github_copilot" \
     "${HOME}/.local/share/litellm/chatgpt" \
     "${HOME}/.local/share/openclaw-browser" \
-    "${HOME}/.openclaw/workspace"
+    "${HOME}/.openclaw" \
+    "${HOME}/openclaw-workspace"
 
   chmod 0700 \
     "${HOME}/.config/openclaw-gateway" \
@@ -504,7 +507,8 @@ ensure_user_dirs() {
     "${HOME}/.local/share/litellm" \
     "${HOME}/.local/share/litellm/github_copilot" \
     "${HOME}/.local/share/litellm/chatgpt" \
-    "${HOME}/.openclaw" 2>/dev/null || true
+    "${HOME}/.openclaw" \
+    "${HOME}/openclaw-workspace" 2>/dev/null || true
 
   if [[ ! -f "${gateway_env}" ]]; then
     : > "${gateway_env}"
@@ -814,7 +818,9 @@ config_openclaw() {
   config_set_json "gateway.controlUi.allowInsecureAuth" "false"
   config_set_json "secrets.providers.default" '{"source":"env"}'
   config_set_path "session.dmScope" "per-channel-peer"
+  config_set_path "agents.defaults.workspace" "~/openclaw-workspace"
   config_set_path "tools.profile" "coding"
+  config_set_json "tools.fs.workspaceOnly" "true"
   config_set_json "tools.alsoAllow" '["browser"]'
   config_set_json "plugins.entries.browser.enabled" "true"
   config_set_json "plugins.entries.litellm.enabled" "true"
@@ -1379,6 +1385,7 @@ uninstall_openclaw() {
   if [[ "${purge}" == "true" ]]; then
     rm -rf \
       "${HOME}/.openclaw" \
+      "${HOME}/openclaw-workspace" \
       "${HOME}/.config/openclaw-gateway" \
       "${HOME}/.config/litellm" \
       "${HOME}/.config/searxng" \

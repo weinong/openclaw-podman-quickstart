@@ -84,6 +84,7 @@ This also removes:
 
 ```text
 ~/.openclaw
+~/openclaw-workspace
 ~/.config/openclaw-gateway
 ~/.config/litellm
 ~/.config/searxng
@@ -100,7 +101,7 @@ LITELLM_MASTER_KEY
 SearXNG server.secret_key
 GitHub Copilot OAuth token cache
 ChatGPT OAuth token cache
-OpenClaw config, workspace, agents, and sessions
+OpenClaw config, default workspace, agents, and sessions
 ```
 
 Observability config and data use a separate purge command:

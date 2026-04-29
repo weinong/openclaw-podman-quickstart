@@ -13,5 +13,5 @@ exec /usr/bin/podman run --rm \
   -e OPENCLAW_DISABLE_BONJOUR=1 \
   -e NO_COLOR=1 \
   -v "${HOME}/.openclaw:/home/node/.openclaw:Z" \
-  -v "${HOME}/.openclaw/workspace:/home/node/.openclaw/workspace:Z" \
+  -v "${HOME}/openclaw-workspace:/home/node/openclaw-workspace:Z" \
   __OPENCLAW_GATEWAY_IMAGE__
