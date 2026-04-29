@@ -10,5 +10,6 @@ exec /usr/bin/podman run --rm \
   -v "${HOME}/.local/share/openclaw-observability/alloy:/var/lib/alloy:Z" \
   __ALLOY_IMAGE__ \
   run --server.http.listen-addr=0.0.0.0:12345 \
+  --stability.level=public-preview \
   --storage.path=/var/lib/alloy \
   /etc/alloy/config.alloy

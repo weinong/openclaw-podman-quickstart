@@ -262,6 +262,14 @@ This installs and starts:
 - Grafana Alloy for collecting Podman container logs and local OTLP logs/metrics.
 - podman-exporter for Podman pod/container/image/volume/network metrics.
 
+It also patches OpenClaw diagnostics to export OTLP to Alloy from inside the shared Podman network:
+
+```text
+diagnostics.otel.endpoint: http://openclaw-alloy:4318
+diagnostics.otel.protocol: http/protobuf
+plugins.entries.diagnostics-otel.enabled: true
+```
+
 Runtime endpoints bind to localhost only:
 
 ```text
@@ -272,13 +280,15 @@ OTLP gRPC:  127.0.0.1:14317
 OTLP HTTP:  http://127.0.0.1:4318
 ```
 
+Containers in the OpenClaw pod use the internal endpoint `http://openclaw-alloy:4318`, provided by the shared `openclaw-internal` Podman network. Host processes can continue to use `http://127.0.0.1:4318`.
+
 Grafana credentials are written to `~/.config/openclaw-observability/grafana.env`. Set `GRAFANA_ADMIN_PASSWORD` before install or config refresh to choose the password yourself:
 
 ```bash
 GRAFANA_ADMIN_PASSWORD='CHANGE_ME' ./oc.sh observability install
 ```
 
-The generated Grafana dashboard includes Podman container state, CPU, memory, container logs, and OTLP logs. Prometheus also scrapes Grafana Alloy, Loki, Prometheus, and podman-exporter metrics. OTLP metrics sent to Alloy are converted to Prometheus samples and remote-written into local Prometheus.
+The generated Grafana dashboard includes Podman container state, CPU, memory, container logs, and OTLP logs. Prometheus also scrapes Grafana Alloy, Loki, Prometheus, and podman-exporter metrics. OTLP metrics sent to Alloy are converted to Prometheus samples and remote-written into local Prometheus. OTLP traces are accepted and written to `~/.local/share/openclaw-observability/alloy/otel-traces.jsonl`; this uses Alloy's public-preview file exporter and does not install a trace query backend like Tempo.
 
 Point OpenTelemetry clients at the local Alloy receiver:
 
@@ -287,7 +297,7 @@ export OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318
 export OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
 ```
 
-For gRPC clients, use `http://127.0.0.1:14317`. OTLP logs are available in Grafana Explore with `{job="otel-logs"}`. Traces are not stored by this stack because it does not install a trace backend.
+For gRPC clients, use `http://127.0.0.1:14317`. OTLP logs are available in Grafana Explore with `{job="otel-logs"}`.
 
 If you installed an earlier version of this branch and Grafana shows `Failed to fetch` or empty panels, refresh the installed units/config and restart the managed containers so the fixed podman-exporter options and file logging are applied:
 

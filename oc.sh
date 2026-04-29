@@ -312,10 +312,11 @@ Install and manage the optional observability stack:
   Loki:              http://127.0.0.1:3100
   OTLP gRPC:         127.0.0.1:14317
   OTLP HTTP:         http://127.0.0.1:4318
+  In-pod OTLP HTTP:  http://openclaw-alloy:4318
 
 Commands:
   install                Create config, install units, and start the stack.
-  config                 Install or refresh bundled config templates.
+  config                 Refresh templates and OpenClaw diagnostics OTEL config.
   start|stop|restart     Manage all observability user services.
   status                 Show all observability user services.
   doctor                 Check observability services and local endpoints.
@@ -480,6 +481,8 @@ litellm_env="${HOME}/.config/litellm/litellm.env"
 observability_dir="${HOME}/.config/openclaw-observability"
 observability_data_dir="${HOME}/.local/share/openclaw-observability"
 grafana_env="${observability_dir}/grafana.env"
+openclaw_internal_network="openclaw-internal"
+openclaw_alloy_otlp_endpoint="http://openclaw-alloy:4318"
 
 ensure_user_dirs() {
   mkdir -p \
@@ -672,6 +675,45 @@ config_unset_path() {
 
 config_set_json() {
   config_set_path "$1" "$2" true "${3:-false}"
+}
+
+config_observability_openclaw() {
+  need_cmd jq
+  ensure_user_dirs
+  ensure_openclaw_config_file
+
+  config_set_json "diagnostics.enabled" "true"
+  config_set_json "diagnostics.otel.enabled" "true"
+  config_set_path "diagnostics.otel.endpoint" "${openclaw_alloy_otlp_endpoint}"
+  config_set_path "diagnostics.otel.protocol" "http/protobuf"
+  config_set_path "diagnostics.otel.serviceName" "openclaw-gateway"
+  config_set_json "diagnostics.otel.traces" "true"
+  config_set_json "diagnostics.otel.metrics" "true"
+  config_set_json "diagnostics.otel.logs" "true"
+  config_set_json "diagnostics.otel.sampleRate" "0.2"
+  config_set_json "diagnostics.otel.flushIntervalMs" "60000"
+  config_set_json "plugins.entries.diagnostics-otel.enabled" "true"
+
+  echo "OpenClaw observability diagnostics updated: ${openclaw_config}"
+  echo "OpenClaw in-pod OTLP endpoint: ${openclaw_alloy_otlp_endpoint}"
+}
+
+remove_internal_network_assets_if_unused() {
+  local core_installed="false"
+  local observability_installed="false"
+
+  if [[ -f "${HOME}/.config/systemd/user/openclaw-pod.service" || -f "${HOME}/.config/containers/systemd/openclaw.pod" ]]; then
+    core_installed="true"
+  fi
+  if [[ -f "${HOME}/.config/systemd/user/openclaw-observability-pod.service" || -f "${HOME}/.config/containers/systemd/openclaw-observability.pod" ]]; then
+    observability_installed="true"
+  fi
+
+  if [[ "${core_installed}" == "false" && "${observability_installed}" == "false" ]]; then
+    rm -f \
+      "${HOME}/.config/systemd/user/openclaw-internal-network.service" \
+      "${HOME}/.config/containers/systemd/openclaw-internal.network"
+  fi
 }
 
 env_suffix() {
@@ -1122,6 +1164,7 @@ configure_observability() {
 
 copy_quadlet_units() {
   ensure_user_dirs
+  render_image_template "${repo_root}/deploy/openclaw/openclaw-internal.network" "${HOME}/.config/containers/systemd/openclaw-internal.network" 0644
   render_image_template "${repo_root}/deploy/openclaw/openclaw.pod" "${HOME}/.config/containers/systemd/openclaw.pod" 0644
   render_image_template "${repo_root}/deploy/openclaw/openclaw-browser.container" "${HOME}/.config/containers/systemd/openclaw-browser.container" 0644
   render_image_template "${repo_root}/deploy/openclaw/litellm.container" "${HOME}/.config/containers/systemd/litellm.container" 0644
@@ -1131,6 +1174,7 @@ copy_quadlet_units() {
 
 copy_observability_quadlet_units() {
   ensure_observability_dirs
+  render_image_template "${repo_root}/deploy/openclaw/openclaw-internal.network" "${HOME}/.config/containers/systemd/openclaw-internal.network" 0644
   render_image_template "${repo_root}/deploy/openclaw/openclaw-observability.pod" "${HOME}/.config/containers/systemd/openclaw-observability.pod" 0644
   render_image_template "${repo_root}/deploy/openclaw/grafana.container" "${HOME}/.config/containers/systemd/grafana.container" 0644
   render_image_template "${repo_root}/deploy/openclaw/prometheus.container" "${HOME}/.config/containers/systemd/prometheus.container" 0644
@@ -1143,6 +1187,7 @@ copy_fallback_units() {
   ensure_user_dirs
   local unit helper
   for unit in \
+    "${repo_root}/deploy/openclaw-systemd/openclaw-internal-network.service" \
     "${repo_root}/deploy/openclaw-systemd/openclaw-pod.service" \
     "${repo_root}/deploy/openclaw-systemd/openclaw-browser.service" \
     "${repo_root}/deploy/openclaw-systemd/openclaw-gateway.service" \
@@ -1163,6 +1208,7 @@ copy_observability_fallback_units() {
   ensure_observability_dirs
   local unit helper
   for unit in \
+    "${repo_root}/deploy/openclaw-systemd/openclaw-internal-network.service" \
     "${repo_root}/deploy/openclaw-systemd/openclaw-observability-pod.service" \
     "${repo_root}/deploy/openclaw-systemd/grafana.service" \
     "${repo_root}/deploy/openclaw-systemd/prometheus.service" \
@@ -1187,8 +1233,14 @@ configure_core() {
   config_searxng
 }
 
+configure_observability_stack() {
+  configure_observability
+  config_observability_openclaw
+}
+
 start_core_services() {
   systemctl_user daemon-reload
+  systemctl_user start openclaw-internal-network.service
   systemctl_user start "${core_services[@]}"
 }
 
@@ -1226,18 +1278,19 @@ install_auto() {
 start_observability_services() {
   systemctl_user start podman.socket
   systemctl_user daemon-reload
+  systemctl_user start openclaw-internal-network.service
   systemctl_user start "${observability_services[@]}"
 }
 
 install_observability_fallback() {
-  configure_observability
+  configure_observability_stack
   copy_observability_fallback_units
   start_observability_services
   echo "Installed Podman 4.9-compatible observability user-systemd units."
 }
 
 install_observability_quadlet() {
-  configure_observability
+  configure_observability_stack
   copy_observability_quadlet_units
   start_observability_services
   echo "Installed observability Quadlet units."
@@ -1263,6 +1316,7 @@ stop_openclaw_runtime() {
       openclaw-litellm \
       openclaw-browser >/dev/null 2>&1 || true
     podman pod rm -f openclaw >/dev/null 2>&1 || true
+    podman network rm "${openclaw_internal_network}" >/dev/null 2>&1 || true
   fi
 }
 
@@ -1277,6 +1331,9 @@ stop_observability_runtime() {
       openclaw-alloy \
       openclaw-podman-exporter >/dev/null 2>&1 || true
     podman pod rm -f openclaw-observability >/dev/null 2>&1 || true
+    if ! podman pod exists openclaw >/dev/null 2>&1; then
+      podman network rm "${openclaw_internal_network}" >/dev/null 2>&1 || true
+    fi
   fi
 }
 
@@ -1305,6 +1362,7 @@ uninstall_openclaw() {
     "${HOME}/.local/bin/openclaw-run-gateway" \
     "${HOME}/.local/bin/openclaw-run-litellm" \
     "${HOME}/.local/bin/openclaw-run-searxng"
+  remove_internal_network_assets_if_unused
 
   systemctl_user daemon-reload >/dev/null 2>&1 || true
   systemctl_user reset-failed "${services[@]}" >/dev/null 2>&1 || true
@@ -1352,6 +1410,7 @@ uninstall_observability() {
     "${HOME}/.local/bin/openclaw-run-loki" \
     "${HOME}/.local/bin/openclaw-run-alloy" \
     "${HOME}/.local/bin/openclaw-run-podman-exporter"
+  remove_internal_network_assets_if_unused
 
   systemctl_user daemon-reload >/dev/null 2>&1 || true
   systemctl_user reset-failed "${observability_services[@]}" >/dev/null 2>&1 || true
@@ -1436,6 +1495,7 @@ doctor_observability() {
     curl -fsS http://127.0.0.1:9090/-/ready || true
     curl -fsS http://127.0.0.1:3100/ready || true
     curl -sS -o /dev/null -w 'OTLP HTTP logs endpoint: HTTP %{http_code}\n' http://127.0.0.1:4318/v1/logs || true
+    echo "In-pod OTLP HTTP endpoint for OpenClaw: ${openclaw_alloy_otlp_endpoint}"
     curl -fsS http://127.0.0.1:9090/api/v1/targets \
       | jq '.data.activeTargets[] | {job: .labels.job, health: .health, scrapeUrl: .scrapeUrl, lastError: .lastError}' || true
   else
@@ -1665,7 +1725,7 @@ main() {
           assert_openclaw_user "${allow_current_user}"
           set -- "${remaining_args[@]}"
           [[ $# -eq 0 ]] || die "observability config does not accept extra arguments: $*"
-          configure_observability
+          configure_observability_stack
           ;;
         start|stop|restart)
           local action="${observability_cmd}"

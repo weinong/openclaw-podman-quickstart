@@ -1,10 +1,12 @@
 [Unit]
 Description=OpenClaw Podman pod
+After=openclaw-internal-network.service
+Requires=openclaw-internal-network.service
 
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/bin/sh -lc 'podman pod exists openclaw || podman pod create --name openclaw -p 127.0.0.1:18789:18789 -p 127.0.0.1:18791:18791 -p 127.0.0.1:4000:4000 -p 127.0.0.1:8080:8080'
+ExecStart=/bin/sh -lc 'podman pod exists openclaw || podman pod create --name openclaw --network podman --network openclaw-internal -p 127.0.0.1:18789:18789 -p 127.0.0.1:18791:18791 -p 127.0.0.1:4000:4000 -p 127.0.0.1:8080:8080'
 ExecStop=/bin/sh -lc 'podman pod stop openclaw || true'
 ExecStopPost=/bin/sh -lc 'podman pod rm -f openclaw || true'
 

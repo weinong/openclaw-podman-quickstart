@@ -20,6 +20,7 @@ otelcol.receiver.otlp "local" {
   }
 
   output {
+    traces  = [otelcol.processor.batch.otel.input]
     metrics = [otelcol.processor.batch.otel.input]
     logs    = [otelcol.processor.attributes.otel_logs.input]
   }
@@ -51,9 +52,16 @@ otelcol.processor.attributes "otel_logs" {
 
 otelcol.processor.batch "otel" {
   output {
+    traces  = [otelcol.exporter.file.traces.input]
     metrics = [otelcol.exporter.prometheus.otel.input]
     logs    = [otelcol.exporter.loki.otel.input]
   }
+}
+
+otelcol.exporter.file "traces" {
+  path           = "/var/lib/alloy/otel-traces.jsonl"
+  append         = true
+  flush_interval = "5s"
 }
 
 otelcol.exporter.prometheus "otel" {

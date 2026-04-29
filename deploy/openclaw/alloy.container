@@ -11,7 +11,7 @@ User=0:0
 Volume=%h/.config/openclaw-observability/alloy.alloy:/etc/alloy/config.alloy:ro,Z
 Volume=%h/.local/share/containers/storage/overlay-containers:/var/lib/containers/storage/overlay-containers:ro
 Volume=%h/.local/share/openclaw-observability/alloy:/var/lib/alloy:Z
-Exec=run --server.http.listen-addr=0.0.0.0:12345 --storage.path=/var/lib/alloy /etc/alloy/config.alloy
+Exec=run --server.http.listen-addr=0.0.0.0:12345 --stability.level=public-preview --storage.path=/var/lib/alloy /etc/alloy/config.alloy
 
 [Service]
 Restart=always

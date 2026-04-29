@@ -36,7 +36,7 @@ This removes:
 ~/.local/bin/openclaw-run-searxng
 ```
 
-It also stops/removes the `openclaw` Podman pod and managed containers when Podman is available.
+It also stops/removes the `openclaw` Podman pod and managed containers when Podman is available. Shared `openclaw-internal` network assets are removed only when the observability stack is not installed.
 
 Generated config and state are kept.
 
@@ -70,7 +70,7 @@ This removes:
 ~/.local/bin/openclaw-run-podman-exporter
 ```
 
-It also stops/removes the `openclaw-observability` Podman pod and managed observability containers when Podman is available.
+It also stops/removes the `openclaw-observability` Podman pod and managed observability containers when Podman is available. Shared `openclaw-internal` network assets are removed only when the core stack is not installed, and the runtime network is removed only if the core `openclaw` pod is not present.
 
 ## Full Purge
 

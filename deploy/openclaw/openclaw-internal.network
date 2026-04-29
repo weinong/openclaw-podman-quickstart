@@ -1,0 +1,6 @@
+[Network]
+NetworkName=openclaw-internal
+Internal=true
+
+[Install]
+WantedBy=default.target
