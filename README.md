@@ -297,7 +297,7 @@ export OTEL_EXPORTER_OTLP_ENDPOINT=http://127.0.0.1:4318
 export OTEL_EXPORTER_OTLP_PROTOCOL=http/protobuf
 ```
 
-For gRPC clients, use `http://127.0.0.1:14317`. OTLP logs are available in Grafana Explore with `{job="otel-logs"}`.
+For gRPC clients, use `http://127.0.0.1:14317`. OTLP logs are available in Grafana Explore with `{job="otel-logs"}`. See [docs/observability-architecture.md](docs/observability-architecture.md) for log and metric data flow, and [docs/networking-architecture.md](docs/networking-architecture.md) for Podman network and port layout.
 
 If you installed an earlier version of this branch and Grafana shows `Failed to fetch` or empty panels, refresh the installed units/config and restart the managed containers so the fixed podman-exporter options and file logging are applied:
 
